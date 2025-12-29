@@ -1,0 +1,23 @@
+/* styles/Dashboard.module.css */
+.container {
+  background-color: var(--offWhite);
+  min-height: 100vh;
+  padding-bottom: 40px;
+}
+
+.content {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.loadingState {
+  padding: 40px;
+  text-align: center;
+}
+
+.errorState {
+  padding: 40px;
+  text-align: center;
+  color: red;
+}

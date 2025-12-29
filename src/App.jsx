@@ -1,4 +1,4 @@
-import Dashboard from './pages/Dashboard'
+import Dashboard from './pages/Dashboard.jsx'
 import { useEffect, useState } from 'react'
 import { supabase } from './lib/supabase'
 import Login from './pages/Login'

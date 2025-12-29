@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+// pages/DashboardOptimized.jsx
 import { useDashboardData } from '../hooks/useDashboardData';
 import { useProfessionalSlots } from '../hooks/useProfessionalSlots';
 import { useProfessionalFilter } from '../hooks/useProfessionalFilter';
@@ -32,15 +32,13 @@ export default function DashboardOptimized({ session }) {
   } = useProfessionalFilter("all");
 
   // Carregar dados principais
-  // Note: incluí setServices aqui. Verifique se seu hook o exporta.
   const {
     salon,
     services,
     professionals,
     loading,
     error,
-    loadData,
-    setServices = () => {} // Fallback para não quebrar caso não exista no hook
+    loadData
   } = useDashboardData(session, selectedProfessionalId);
 
   // Gerenciar slots
@@ -55,7 +53,7 @@ export default function DashboardOptimized({ session }) {
 
   // Carregar slots quando profissionais mudarem
   useEffect(() => {
-    if (professionals && professionals.length > 0) {
+    if (professionals.length > 0) {
       loadProfessionalSlots(professionals);
     }
   }, [professionals, loadProfessionalSlots]);
