@@ -1,25 +1,32 @@
-import React, { useEffect } from 'react';
-import { useDashboardData } from '../../hooks/useDashboardData';
-import { useProfessionalSlots } from '../../hooks/useProfessionalSlots';
-import { useProfessionalFilter } from '../../hooks/useProfessionalFilter';
-import { deleteSlot, updateSlotTime } from '../../services/supabaseService';
-import { getTodaySlotsCount } from '../../utils/dashboardUtils';
-import { COLORS } from '../../constants/dashboard';
-import ProfessionalsSection from '../../components/ProfessionalsSection';
+import React, { useEffect } from "react";
+import { useNavigate } from "react-router-dom"; // Para o botão de retorno
+import ProfessionalsSection from "../../components/ProfessionalsSection";
+import { useDashboardData } from "../../hooks/useDashboardData";
+import { useProfessionalSlots } from "../../hooks/useProfessionalSlots";
+import { useProfessionalFilter } from "../../hooks/useProfessionalFilter";
+import { deleteSlot, updateSlotTime } from "../../services/supabaseService";
+import { COLORS } from "../../constants/dashboard";
 
 export default function Agenda({ session }) {
-  const { selectedProfessionalId, setSelectedProfessionalId } = useProfessionalFilter("all");
+  const navigate = useNavigate();
 
+  // 1. Gerenciar filtro de profissional
   const {
-    salon,
-    services,
-    professionals,
-    loading,
+    selectedProfessionalId,
+    setSelectedProfessionalId
+  } = useProfessionalFilter("all");
+
+  // 2. Carregar dados principais
+  const { 
+    salon, 
+    services, 
+    professionals, 
+    loading, 
     error,
-    loadData,
-    setServices = () => {}
+    loadData 
   } = useDashboardData(session, selectedProfessionalId);
 
+  // 3. Gerenciar slots (agendamentos)
   const {
     slotsByProfessional,
     loadingSlots,
@@ -29,12 +36,14 @@ export default function Agenda({ session }) {
     setSlotsByProfessional
   } = useProfessionalSlots();
 
+  // 4. Carregar slots quando os profissionais são carregados
   useEffect(() => {
     if (professionals && professionals.length > 0) {
       loadProfessionalSlots(professionals);
     }
   }, [professionals, loadProfessionalSlots]);
 
+  // 5. Funções de manipulação (Resolvendo o ReferenceError)
   const handleDeleteSlot = async (slotId, profId) => {
     if (!window.confirm("Deseja realmente cancelar este agendamento?")) return;
     try {
@@ -54,16 +63,37 @@ export default function Agenda({ session }) {
     }
   };
 
+  // Estados de carregamento e erro
   if (loading) return <div style={{ padding: 40, textAlign: "center" }}>Carregando agenda...</div>;
   if (error) return <div style={{ padding: 40, textAlign: "center", color: "red" }}>{error}</div>;
-  if (!salon) return <div style={{ padding: 40 }}>Salão não encontrado</div>;
+  if (!salon) return <div style={{ padding: 40, textAlign: "center" }}>Salão não encontrado.</div>;
 
   return (
     <div style={{ backgroundColor: COLORS.offWhite, minHeight: "100vh", paddingBottom: "40px" }}>
       <div style={{ maxWidth: "1200px", margin: "0 auto", padding: "20px" }}>
-        <h1 style={{ color: COLORS.deepCharcoal, textAlign: 'center', marginBottom: 20 }}>
-          Agenda de {salon.name}
-        </h1>
+        
+        {/* Botão de Retorno */}
+        <button 
+          onClick={() => navigate(-1)} 
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+            background: "none",
+            border: "none",
+            color: COLORS.deepCharcoal,
+            cursor: "pointer",
+            marginBottom: "20px",
+            fontSize: "16px",
+            fontWeight: "500"
+          }}
+        >
+          ← Voltar para o Painel
+        </button>
+
+        <h2 style={{ marginBottom: "20px", color: COLORS.deepCharcoal }}>
+          Agenda: {salon.name}
+        </h2>
 
         <ProfessionalsSection
           professionals={professionals}

@@ -1,98 +1,51 @@
-import React from "react";
+import React from 'react';
 
-export default function DashboardHeader({
-  salonName,
-  todaySlotsCount,
-  colors,
-  selectedProfessionalId,
-  setSelectedProfessionalId,
-  professionals = [],
-  upcomingFeatures = [], // Novidade: lista de futuras funções
-}) {
+const DashboardHeader = ({ 
+  salonName = "Carregando...", 
+  todaySlotsCount = 0, 
+  colors, 
+  upcomingFeatures = [] 
+}) => {
+  // Verificação de segurança para as cores
+  const theme = {
+    text: colors?.deepCharcoal || "#333",
+    subtext: colors?.mutedTaupe || "#666",
+    accent: colors?.warmSand || "#f3eee a"
+  };
+
   return (
-    <header style={{ marginBottom: "30px", textAlign: "center" }}>
-      {/* Nome do salão */}
-      <h1 style={{ color: colors.deepCharcoal, fontSize: "2.5rem", fontWeight: 300 }}>
-        {salonName}
-      </h1>
-
-      {/* Agendamentos de hoje */}
-      <p style={{ color: colors.deepCharcoal }}>
-        Hoje: <strong>{todaySlotsCount}</strong> agendamento{todaySlotsCount !== 1 ? "s" : ""}
-      </p>
-
-      {/* Filtro de profissionais (pills) */}
-      <div
-        style={{
-          display: "flex",
-          gap: "10px",
-          flexWrap: "wrap",
-          justifyContent: "center",
-          marginTop: "15px",
-          marginBottom: "20px",
-        }}
-      >
-        <button
-          onClick={() => setSelectedProfessionalId("all")}
-          style={{
-            padding: "8px 16px",
-            borderRadius: "20px",
-            border: "none",
-            backgroundColor: selectedProfessionalId === "all" ? colors.sageGreen : colors.warmSand,
-            color: selectedProfessionalId === "all" ? "white" : colors.deepCharcoal,
-            fontWeight: 500,
-          }}
-        >
-          Todos
-        </button>
-
-        {professionals.map((pro) => (
-          <button
-            key={pro.id}
-            onClick={() => setSelectedProfessionalId(pro.id)}
-            style={{
-              padding: "8px 16px",
-              borderRadius: "20px",
-              border: "none",
-              backgroundColor: selectedProfessionalId === pro.id ? colors.sageGreen : colors.warmSand,
-              color: selectedProfessionalId === pro.id ? "white" : colors.deepCharcoal,
-              fontWeight: 500,
-            }}
-          >
-            {pro.name}
-          </button>
-        ))}
-      </div>
-
-      {/* Futuras funcionalidades */}
-      {upcomingFeatures.length > 0 && (
-        <div
-          style={{
-            display: "flex",
-            gap: "10px",
-            flexWrap: "wrap",
-            justifyContent: "center",
-            marginTop: "10px",
-          }}
-        >
-          {upcomingFeatures.map((feature) => (
-            <div
-              key={feature.name}
-              style={{
-                padding: "6px 12px",
-                borderRadius: "12px",
-                backgroundColor: colors.dustyRose,
-                color: colors.deepCharcoal,
-                fontSize: "0.9rem",
-                fontWeight: 500,
-              }}
-              title={feature.description}
-            >
-              {feature.name}
-            </div>
-          ))}
+    <header style={{ marginBottom: "30px", borderBottom: `1px solid ${theme.accent}`, paddingBottom: "20px" }}>
+      <div style={{ 
+        display: "flex", 
+        justifyContent: "space-between", 
+        alignItems: "flex-start",
+        gap: "20px"
+      }}>
+        <div>
+          <h1 style={{ fontSize: "28px", color: theme.text, margin: 0 }}>
+            {salonName}
+          </h1>
+          <p style={{ color: theme.subtext, marginTop: "5px" }}>
+            {todaySlotsCount > 0 
+              ? `Você tem ${todaySlotsCount} agendamentos hoje.` 
+              : "Bem-vindo ao seu painel de controle."}
+          </p>
         </div>
-      )}
+
+        {upcomingFeatures.length > 0 && (
+          <div style={{ 
+            backgroundColor: theme.accent, 
+            padding: "8px 15px", 
+            borderRadius: "10px",
+            fontSize: "13px",
+            maxWidth: "250px"
+          }}>
+            <strong>Em breve:</strong> {upcomingFeatures.join(", ")}
+          </div>
+        )}
+      </div>
     </header>
   );
-}
+};
+
+export default DashboardHeader;

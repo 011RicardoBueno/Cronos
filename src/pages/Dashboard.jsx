@@ -1,126 +1,51 @@
-import React, { useEffect } from 'react';
+import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useDashboardData } from '../hooks/useDashboardData';
-import { useProfessionalSlots } from '../hooks/useProfessionalSlots';
-import { useProfessionalFilter } from '../hooks/useProfessionalFilter';
-import { deleteSlot, updateSlotTime } from '../services/supabaseService';
-import { getTodaySlotsCount } from '../utils/dashboardUtils';
 import { COLORS, UPCOMING_FEATURES } from '../constants/dashboard';
 
 import DashboardHeader from '../components/layout/DashboardHeader';
-import ProfessionalsSection from '../components/ProfessionalsSection';
+import DashboardModules from '../components/dashboard/DashboardModules';
 import ServicesSection from '../components/ServicesSection';
 
-// Componentes de estado
-const LoadingState = () => (
-  <div style={{ padding: 40, textAlign: "center" }}>
-    Carregando painel...
-  </div>
-);
+export default function Dashboard({ session }) {
+  const navigate = useNavigate();
 
-const ErrorState = ({ message }) => (
-  <div style={{ padding: 40, textAlign: "center", color: "red" }}>
-    {message}
-  </div>
-);
-
-export default function DashboardOptimized({ session }) {
-  // Gerenciar filtro de profissional
-  const {
-    selectedProfessionalId,
-    setSelectedProfessionalId,
-    updateUrlAndStorage
-  } = useProfessionalFilter("all");
-
-  // Carregar dados principais
-  // Note: incluí setServices aqui. Verifique se seu hook o exporta.
+  // 1. Buscando os dados do Hook
   const {
     salon,
     services,
-    professionals,
     loading,
     error,
-    loadData,
-    setServices = () => {} // Fallback para não quebrar caso não exista no hook
-  } = useDashboardData(session, selectedProfessionalId);
+    setServices
+  } = useDashboardData(session, "all");
 
-  // Gerenciar slots
-  const {
-    slotsByProfessional,
-    loadingSlots,
-    loadProfessionalSlots,
-    updateSlotsAfterDelete,
-    updateSlotsAfterMove,
-    setSlotsByProfessional
-  } = useProfessionalSlots();
+  // 2. ESTA PARTE É ESSENCIAL: Enquanto o loading for true, 
+  // o React deve mostrar uma mensagem e não o Header vazio.
+  if (loading) {
+    return <div style={{ padding: 40, textAlign: "center" }}>Carregando dados do salão...</div>;
+  }
 
-  // Carregar slots quando profissionais mudarem
-  useEffect(() => {
-    if (professionals && professionals.length > 0) {
-      loadProfessionalSlots(professionals);
-    }
-  }, [professionals, loadProfessionalSlots]);
-
-  // Funções de manipulação de slots
-  const handleDeleteSlot = async (slotId, profId) => {
-    if (!window.confirm("Deseja realmente cancelar este agendamento?")) return;
-    
-    try {
-      await deleteSlot(slotId);
-      updateSlotsAfterDelete(profId, slotId);
-    } catch (err) {
-      alert("Erro ao cancelar: " + err.message);
-    }
-  };
-
-  const handleMoveSlot = async ({ slotId, professionalId, newStart }) => {
-    try {
-      await updateSlotTime(slotId, newStart);
-      updateSlotsAfterMove(professionalId, slotId, newStart.toISOString());
-    } catch (err) {
-      alert("Erro ao mover agendamento: " + err.message);
-    }
-  };
-
-  // Calcular contagem de slots do dia
-  const todaySlotsCount = getTodaySlotsCount(slotsByProfessional);
-
-  // Estados de loading e erro
-  if (loading) return <LoadingState />;
-  if (error) return <ErrorState message={error} />;
-  if (!salon) return <div style={{ padding: 40 }}>Salão não encontrado</div>;
+  if (error) {
+    return <div style={{ padding: 40, color: "red", textAlign: "center" }}>Erro: {error}</div>;
+  }
 
   return (
     <div style={{ backgroundColor: COLORS.offWhite, minHeight: "100vh", paddingBottom: "40px" }}>
       <div style={{ maxWidth: "1200px", margin: "0 auto", padding: "20px" }}>
         
+        {/* 3. Aqui passamos o nome real do salão que veio do banco de dados */}
         <DashboardHeader
-          salonName={salon.name}
-          todaySlotsCount={todaySlotsCount}
+          salonName={salon?.name} 
           colors={COLORS}
-          selectedProfessionalId={selectedProfessionalId}
-          setSelectedProfessionalId={setSelectedProfessionalId}
-          professionals={professionals}
           upcomingFeatures={UPCOMING_FEATURES}
         />
 
-        <ProfessionalsSection
-          professionals={professionals}
-          selectedProfessionalId={selectedProfessionalId}
-          setSelectedProfessionalId={setSelectedProfessionalId}
-          services={services}
-          slotsByProfessional={slotsByProfessional}
-          setSlotsByProfessional={setSlotsByProfessional}
-          loadDashboardData={loadData}
-          handleDeleteSlot={handleDeleteSlot}
-          handleMoveSlot={handleMoveSlot}
-          colors={COLORS}
-          loadingSlots={loadingSlots}
-        />
+        <DashboardModules navigate={navigate} />
 
         <ServicesSection
           services={services}
           setServices={setServices}
-          salonId={salon.id}
+          salonId={salon?.id}
           colors={COLORS}
         />
       </div>
