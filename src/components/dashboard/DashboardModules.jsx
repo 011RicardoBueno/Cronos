@@ -5,7 +5,7 @@ import { COLORS } from '../../constants/dashboard';
 export default function DashboardModules({ navigate }) {
   const modules = [
     { title: 'Agenda', description: 'Visualizar e gerenciar agendamentos', route: '/agenda' },
-    { title: 'Serviços', description: 'Gerenciar catálogo de serviços', route: '/services' },
+    { title: 'Serviços', description: 'Gerenciar catálogo de serviços', route: '/servicos' },
     { title: 'Fidelidade', description: 'Programa de fidelidade e clientes VIP', route: '/loyalty' },
     { title: 'Comissões', description: 'Visualizar e controlar comissões', route: '/commissions' },
     { title: 'Pagamentos', description: 'Controle de pagamentos online', route: '/payments' },
