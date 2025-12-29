@@ -13,6 +13,10 @@ export default function Dashboard({ session }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [selectedProfessionalId, setSelectedProfessionalId] = useState(() => {
+  return localStorage.getItem("cronos:selectedProfessional") || "all";
+});
+
 
   const colors = {
     offWhite: "#FAFAF9",
@@ -60,6 +64,15 @@ export default function Dashboard({ session }) {
       setServices(servicesRes.data);
       setProfessionals(professionalsRes.data);
 
+      const exists = professionalsRes.data.some(
+  (p) => p.id === selectedProfessionalId
+);
+
+if (!exists && selectedProfessionalId !== "all") {
+  setSelectedProfessionalId("all");
+}
+
+
       const slotsPromises = professionalsRes.data.map((pro) =>
         supabase
           .from("slots")
@@ -88,18 +101,23 @@ export default function Dashboard({ session }) {
     loadDashboardData();
   }, [loadDashboardData]);
 
+  useEffect(() => {
+  localStorage.setItem(
+    "cronos:selectedProfessional",
+    selectedProfessionalId
+  );
+}, [selectedProfessionalId]);
+
+
   const handleRefresh = async () => {
     setRefreshing(true);
     await loadDashboardData();
   };
 
-  const handleDeleteSlot = async (slotId, professionalId) => {
+  const handleDeleteSlot = async (slotId, profId) => {
     if (!window.confirm("Deseja realmente cancelar este agendamento?")) return;
 
-    const { error } = await supabase
-      .from("slots")
-      .delete()
-      .eq("id", slotId);
+    const { error } = await supabase.from("slots").delete().eq("id", slotId);
 
     if (error) {
       alert("Erro ao cancelar: " + error.message);
@@ -108,9 +126,7 @@ export default function Dashboard({ session }) {
 
     setSlotsByProfessional((prev) => ({
       ...prev,
-      [professionalId]: prev[professionalId].filter(
-        (slot) => slot.id !== slotId
-      ),
+      [profId]: prev[profId].filter((s) => s.id !== slotId),
     }));
   };
 
@@ -125,25 +141,20 @@ export default function Dashboard({ session }) {
 
       setSlotsByProfessional((prev) => ({
         ...prev,
-        [professionalId]: prev[professionalId].map((slot) =>
-          slot.id === slotId
-            ? { ...slot, time: newStart.toISOString() }
-            : slot
+        [professionalId]: prev[professionalId].map((s) =>
+          s.id === slotId ? { ...s, time: newStart.toISOString() } : s
         ),
       }));
 
       console.log("Agendamento atualizado com sucesso");
     } catch (err) {
       console.error("Erro ao mover agendamento:", err);
-      alert("Erro ao mover agendamento");
     }
   };
 
   const todaySlotsCount = Object.values(slotsByProfessional)
     .flat()
-    .filter((slot) =>
-      moment(slot.time).isSame(new Date(), "day")
-    ).length;
+    .filter((slot) => moment(slot.time).isSame(new Date(), "day")).length;
 
   if (loading) {
     return (
@@ -169,53 +180,81 @@ export default function Dashboard({ session }) {
     );
   }
 
+  const professionalsToRender =
+    selectedProfessionalId === "all"
+      ? professionals
+      : professionals.filter((p) => p.id === selectedProfessionalId);
+
   return (
-    <div
-      style={{
-        backgroundColor: colors.offWhite,
-        minHeight: "100vh",
-        paddingBottom: "40px",
-      }}
-    >
+    <div style={{ backgroundColor: colors.offWhite, minHeight: "100vh", paddingBottom: "40px" }}>
       <div style={{ maxWidth: "1200px", margin: "0 auto", padding: "20px" }}>
-        <header style={{ marginBottom: "40px", textAlign: "center" }}>
-          <h1
-            style={{
-              color: colors.deepCharcoal,
-              fontSize: "2.5rem",
-              fontWeight: "300",
-              marginBottom: "10px",
-            }}
-          >
+        <header style={{ marginBottom: "30px", textAlign: "center" }}>
+          <h1 style={{ color: colors.deepCharcoal, fontSize: "2.5rem", fontWeight: 300 }}>
             {salon.name}
           </h1>
-
-          <p style={{ color: "#888", fontWeight: "300" }}>
+          <p style={{ color: "#888", fontWeight: 300 }}>
             Gestão de Agenda & Serviços
           </p>
-
-          <p style={{ color: colors.deepCharcoal, fontSize: "1.1rem" }}>
-            Hoje: <strong>{todaySlotsCount}</strong> agendamento
-            {todaySlotsCount !== 1 ? "s" : ""}
+          <p style={{ color: colors.deepCharcoal }}>
+            Hoje: <strong>{todaySlotsCount}</strong> agendamento{todaySlotsCount !== 1 ? "s" : ""}
           </p>
-
-          <button
-            onClick={handleRefresh}
-            disabled={refreshing}
-            style={{
-              padding: "10px 20px",
-              backgroundColor: colors.sageGreen,
-              color: "white",
-              border: "none",
-              borderRadius: "8px",
-              opacity: refreshing ? 0.7 : 1,
-            }}
-          >
-            {refreshing ? "Atualizando..." : "Atualizar Dados"}
-          </button>
         </header>
 
-        {professionals.map((pro) => (
+        {/* Pills de filtro */}
+        <div
+          style={{
+            display: "flex",
+            gap: "10px",
+            flexWrap: "wrap",
+            justifyContent: "center",
+            marginBottom: "40px",
+          }}
+        >
+          <button
+            onClick={() => setSelectedProfessionalId("all")}
+            style={{
+              padding: "8px 16px",
+              borderRadius: "20px",
+              border: "none",
+              backgroundColor:
+                selectedProfessionalId === "all"
+                  ? colors.sageGreen
+                  : colors.warmSand,
+              color:
+                selectedProfessionalId === "all"
+                  ? "white"
+                  : colors.deepCharcoal,
+              fontWeight: 500,
+            }}
+          >
+            Todos
+          </button>
+
+          {professionals.map((pro) => (
+            <button
+              key={pro.id}
+              onClick={() => setSelectedProfessionalId(pro.id)}
+              style={{
+                padding: "8px 16px",
+                borderRadius: "20px",
+                border: "none",
+                backgroundColor:
+                  selectedProfessionalId === pro.id
+                    ? colors.sageGreen
+                    : colors.warmSand,
+                color:
+                  selectedProfessionalId === pro.id
+                    ? "white"
+                    : colors.deepCharcoal,
+                fontWeight: 500,
+              }}
+            >
+              {pro.name}
+            </button>
+          ))}
+        </div>
+
+        {professionalsToRender.map((pro) => (
           <section
             key={pro.id}
             style={{
@@ -226,7 +265,7 @@ export default function Dashboard({ session }) {
               border: `1px solid ${colors.warmSand}`,
             }}
           >
-            <h2 style={{ marginBottom: "20px" }}>
+            <h2 style={{ color: colors.deepCharcoal, marginBottom: "20px" }}>
               Agenda: <strong>{pro.name}</strong>
             </h2>
 
@@ -256,7 +295,9 @@ export default function Dashboard({ session }) {
             border: `1px solid ${colors.warmSand}`,
           }}
         >
-          <h2 style={{ marginBottom: "20px" }}>Catálogo de Serviços</h2>
+          <h2 style={{ color: colors.deepCharcoal, marginBottom: "20px" }}>
+            Catálogo de Serviços
+          </h2>
           <ServicesList
             services={services}
             setServices={setServices}
