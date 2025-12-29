@@ -1,9 +1,15 @@
 import { useEffect, useState, useCallback } from "react";
 import { supabase } from "../lib/supabase";
-import ProfessionalCalendar from "../components/ProfessionalCalendar";
-import ServicesList from "../components/ServicesList";
-import ProfessionalSlotForm from "../components/ProfessionalSlotForm";
 import moment from "moment";
+
+import DashboardHeader from "../components/layout/DashboardHeader";
+import ProfessionalsSection from "../components/ProfessionalsSection";
+import ServicesSection from "../components/ServicesSection";
+
+function getProfessionalFromURL() {
+  const params = new URLSearchParams(window.location.search);
+  return params.get("pro");
+}
 
 export default function Dashboard({ session }) {
   const [salon, setSalon] = useState(null);
@@ -12,11 +18,10 @@ export default function Dashboard({ session }) {
   const [slotsByProfessional, setSlotsByProfessional] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [refreshing, setRefreshing] = useState(false);
   const [selectedProfessionalId, setSelectedProfessionalId] = useState(() => {
-  return localStorage.getItem("cronos:selectedProfessional") || "all";
-});
-
+    const fromURL = getProfessionalFromURL();
+    return fromURL || localStorage.getItem("cronos:selectedProfessional") || "all";
+  });
 
   const colors = {
     offWhite: "#FAFAF9",
@@ -39,271 +44,118 @@ export default function Dashboard({ session }) {
         .eq("id", session.user.id)
         .single();
 
-      if (userError || !userData?.salons) {
-        throw new Error("Salão não encontrado");
-      }
-
+      if (userError || !userData?.salons) throw new Error("Salão não encontrado");
       setSalon(userData.salons);
 
       const [servicesRes, professionalsRes] = await Promise.all([
-        supabase
-          .from("services")
-          .select("*")
-          .eq("salon_id", userData.salons.id)
-          .order("created_at"),
-        supabase
-          .from("professionals")
-          .select("*")
-          .eq("salon_id", userData.salons.id)
-          .order("name"),
+        supabase.from("services").select("*").eq("salon_id", userData.salons.id).order("created_at"),
+        supabase.from("professionals").select("*").eq("salon_id", userData.salons.id).order("name"),
       ]);
 
       if (servicesRes.error) throw servicesRes.error;
       if (professionalsRes.error) throw professionalsRes.error;
 
-      setServices(servicesRes.data);
-      setProfessionals(professionalsRes.data);
+      setServices(servicesRes.data || []);
+      setProfessionals(professionalsRes.data || []);
 
-      const exists = professionalsRes.data.some(
-  (p) => p.id === selectedProfessionalId
-);
+      // Ajusta selectedProfessionalId caso não exista mais
+      const exists = (professionalsRes.data || []).some(p => p.id === selectedProfessionalId);
+      if (!exists && selectedProfessionalId !== "all") setSelectedProfessionalId("all");
 
-if (!exists && selectedProfessionalId !== "all") {
-  setSelectedProfessionalId("all");
-}
-
-
-      const slotsPromises = professionalsRes.data.map((pro) =>
-        supabase
-          .from("slots")
-          .select("*, services(name)")
-          .eq("professional_id", pro.id)
-          .order("time")
+      const slotsPromises = (professionalsRes.data || []).map(pro =>
+        supabase.from("slots").select("*, services(name)").eq("professional_id", pro.id).order("time")
       );
-
       const slotsResults = await Promise.all(slotsPromises);
 
       const slotsMap = {};
-      professionalsRes.data.forEach((pro, idx) => {
+      (professionalsRes.data || []).forEach((pro, idx) => {
         slotsMap[pro.id] = slotsResults[idx].data || [];
       });
-
       setSlotsByProfessional(slotsMap);
     } catch (err) {
       setError(err.message || "Erro ao carregar dados");
     } finally {
       setLoading(false);
-      setRefreshing(false);
     }
-  }, [session]);
+  }, [session, selectedProfessionalId]);
 
   useEffect(() => {
     loadDashboardData();
   }, [loadDashboardData]);
 
+  // Atualiza localStorage e URL quando o filtro muda
   useEffect(() => {
-  localStorage.setItem(
-    "cronos:selectedProfessional",
-    selectedProfessionalId
-  );
-}, [selectedProfessionalId]);
+    localStorage.setItem("cronos:selectedProfessional", selectedProfessionalId);
+    const params = new URLSearchParams(window.location.search);
+    selectedProfessionalId === "all" ? params.delete("pro") : params.set("pro", selectedProfessionalId);
+    window.history.replaceState({}, "", `${window.location.pathname}${params.toString() ? `?${params.toString()}` : ""}`);
+  }, [selectedProfessionalId]);
 
-
-  const handleRefresh = async () => {
-    setRefreshing(true);
-    await loadDashboardData();
-  };
-
+  // Funções de manipulação de slots
   const handleDeleteSlot = async (slotId, profId) => {
     if (!window.confirm("Deseja realmente cancelar este agendamento?")) return;
-
     const { error } = await supabase.from("slots").delete().eq("id", slotId);
-
-    if (error) {
+    if (!error) {
+      setSlotsByProfessional(prev => ({
+        ...prev,
+        [profId]: prev[profId].filter(s => s.id !== slotId)
+      }));
+    } else {
       alert("Erro ao cancelar: " + error.message);
-      return;
     }
-
-    setSlotsByProfessional((prev) => ({
-      ...prev,
-      [profId]: prev[profId].filter((s) => s.id !== slotId),
-    }));
   };
 
   const handleMoveSlot = async ({ slotId, professionalId, newStart }) => {
-    try {
-      const { error } = await supabase
-        .from("slots")
-        .update({ time: newStart.toISOString() })
-        .eq("id", slotId);
-
-      if (error) throw error;
-
-      setSlotsByProfessional((prev) => ({
+    const { error } = await supabase.from("slots").update({ time: newStart.toISOString() }).eq("id", slotId);
+    if (!error) {
+      setSlotsByProfessional(prev => ({
         ...prev,
-        [professionalId]: prev[professionalId].map((s) =>
-          s.id === slotId ? { ...s, time: newStart.toISOString() } : s
-        ),
+        [professionalId]: prev[professionalId].map(s => s.id === slotId ? { ...s, time: newStart.toISOString() } : s)
       }));
-
-      console.log("Agendamento atualizado com sucesso");
-    } catch (err) {
-      console.error("Erro ao mover agendamento:", err);
+    } else {
+      alert("Erro ao mover agendamento: " + error.message);
     }
   };
 
-  const todaySlotsCount = Object.values(slotsByProfessional)
-    .flat()
-    .filter((slot) => moment(slot.time).isSame(new Date(), "day")).length;
+  const todaySlotsCount = Object.values(slotsByProfessional).flat()
+    .filter(slot => moment(slot.time).isSame(new Date(), "day")).length;
 
-  if (loading) {
-    return (
-      <div style={{ padding: 40, textAlign: "center", color: colors.deepCharcoal }}>
-        Carregando painel...
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div style={{ padding: 40, textAlign: "center", color: "red" }}>
-        {error}
-      </div>
-    );
-  }
-
-  if (!salon) {
-    return (
-      <div style={{ padding: 40, color: colors.deepCharcoal }}>
-        Salão não encontrado
-      </div>
-    );
-  }
-
-  const professionalsToRender =
-    selectedProfessionalId === "all"
-      ? professionals
-      : professionals.filter((p) => p.id === selectedProfessionalId);
+  if (loading) return <div style={{ padding: 40, textAlign: "center" }}>Carregando painel...</div>;
+  if (error) return <div style={{ padding: 40, textAlign: "center", color: "red" }}>{error}</div>;
+  if (!salon) return <div style={{ padding: 40 }}>Salão não encontrado</div>;
 
   return (
     <div style={{ backgroundColor: colors.offWhite, minHeight: "100vh", paddingBottom: "40px" }}>
       <div style={{ maxWidth: "1200px", margin: "0 auto", padding: "20px" }}>
-        <header style={{ marginBottom: "30px", textAlign: "center" }}>
-          <h1 style={{ color: colors.deepCharcoal, fontSize: "2.5rem", fontWeight: 300 }}>
-            {salon.name}
-          </h1>
-          <p style={{ color: "#888", fontWeight: 300 }}>
-            Gestão de Agenda & Serviços
-          </p>
-          <p style={{ color: colors.deepCharcoal }}>
-            Hoje: <strong>{todaySlotsCount}</strong> agendamento{todaySlotsCount !== 1 ? "s" : ""}
-          </p>
-        </header>
+        
+        <DashboardHeader
+          salon={salon}
+          todaySlotsCount={todaySlotsCount}
+          selectedProfessionalId={selectedProfessionalId}
+          setSelectedProfessionalId={setSelectedProfessionalId}
+          professionals={professionals}
+          colors={colors}
+        />
 
-        {/* Pills de filtro */}
-        <div
-          style={{
-            display: "flex",
-            gap: "10px",
-            flexWrap: "wrap",
-            justifyContent: "center",
-            marginBottom: "40px",
-          }}
-        >
-          <button
-            onClick={() => setSelectedProfessionalId("all")}
-            style={{
-              padding: "8px 16px",
-              borderRadius: "20px",
-              border: "none",
-              backgroundColor:
-                selectedProfessionalId === "all"
-                  ? colors.sageGreen
-                  : colors.warmSand,
-              color:
-                selectedProfessionalId === "all"
-                  ? "white"
-                  : colors.deepCharcoal,
-              fontWeight: 500,
-            }}
-          >
-            Todos
-          </button>
+        <ProfessionalsSection
+          professionals={professionals}
+          selectedProfessionalId={selectedProfessionalId}
+          setSelectedProfessionalId={setSelectedProfessionalId}
+          services={services}
+          slotsByProfessional={slotsByProfessional}
+          setSlotsByProfessional={setSlotsByProfessional}
+          loadDashboardData={loadDashboardData}
+          handleDeleteSlot={handleDeleteSlot}
+          handleMoveSlot={handleMoveSlot}
+          colors={colors}
+        />
 
-          {professionals.map((pro) => (
-            <button
-              key={pro.id}
-              onClick={() => setSelectedProfessionalId(pro.id)}
-              style={{
-                padding: "8px 16px",
-                borderRadius: "20px",
-                border: "none",
-                backgroundColor:
-                  selectedProfessionalId === pro.id
-                    ? colors.sageGreen
-                    : colors.warmSand,
-                color:
-                  selectedProfessionalId === pro.id
-                    ? "white"
-                    : colors.deepCharcoal,
-                fontWeight: 500,
-              }}
-            >
-              {pro.name}
-            </button>
-          ))}
-        </div>
-
-        {professionalsToRender.map((pro) => (
-          <section
-            key={pro.id}
-            style={{
-              backgroundColor: colors.white,
-              borderRadius: "16px",
-              padding: "30px",
-              marginBottom: "40px",
-              border: `1px solid ${colors.warmSand}`,
-            }}
-          >
-            <h2 style={{ color: colors.deepCharcoal, marginBottom: "20px" }}>
-              Agenda: <strong>{pro.name}</strong>
-            </h2>
-
-            <ProfessionalSlotForm
-              services={services}
-              professionalId={pro.id}
-              slotsByProfessional={slotsByProfessional}
-              setSlotsByProfessional={setSlotsByProfessional}
-              colors={colors}
-              onSlotCreated={loadDashboardData}
-            />
-
-            <ProfessionalCalendar
-              slots={slotsByProfessional[pro.id] || []}
-              professionalId={pro.id}
-              handleDeleteSlot={handleDeleteSlot}
-              handleMoveSlot={handleMoveSlot}
-            />
-          </section>
-        ))}
-
-        <section
-          style={{
-            backgroundColor: colors.white,
-            borderRadius: "16px",
-            padding: "30px",
-            border: `1px solid ${colors.warmSand}`,
-          }}
-        >
-          <h2 style={{ color: colors.deepCharcoal, marginBottom: "20px" }}>
-            Catálogo de Serviços
-          </h2>
-          <ServicesList
-            services={services}
-            setServices={setServices}
-            salonId={salon.id}
-          />
-        </section>
+        <ServicesSection
+          services={services}
+          setServices={setServices}
+          salonId={salon.id}
+          colors={colors}
+        />
       </div>
     </div>
   );
