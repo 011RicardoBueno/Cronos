@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
-import { Clock, CheckCircle, MapPin, Phone } from 'lucide-react';
+import { MapPin, CheckCircle2 } from 'lucide-react';
 import { COLORS } from '../../constants/dashboard';
 
 export default function PublicBookingPage() {
@@ -9,12 +9,12 @@ export default function PublicBookingPage() {
   const [salon, setSalon] = useState(null);
   const [services, setServices] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [step, setStep] = useState(1); // 1: Serviço, 2: Data/Hora, 3: Identificação
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [step, setStep] = useState(1); 
 
   const [bookingData, setBookingData] = useState({
     service: null,
     date: '',
-    time: '',
     clientName: '',
     clientPhone: ''
   });
@@ -22,7 +22,6 @@ export default function PublicBookingPage() {
   useEffect(() => {
     async function loadPublicData() {
       try {
-        // 1. Procura o salão pela slug
         const { data: salonData, error: sError } = await supabase
           .from('salons')
           .select('*')
@@ -32,7 +31,6 @@ export default function PublicBookingPage() {
         if (sError) throw sError;
         setSalon(salonData);
 
-        // 2. Busca os serviços deste salão
         const { data: servicesData } = await supabase
           .from('services')
           .select('*')
@@ -48,12 +46,61 @@ export default function PublicBookingPage() {
     loadPublicData();
   }, [slug]);
 
+  // FUNÇÃO DE GRAVAÇÃO NO BANCO
+  const handleConfirm = async () => {
+    if (!bookingData.clientName || !bookingData.clientPhone || !bookingData.date) {
+      alert("Por favor, preencha todos os campos.");
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+
+      // 1. Cálculo do horário de término
+      const startTime = new Date(bookingData.date);
+      const duration = bookingData.service.duration_minutes;
+      const endTime = new Date(startTime.getTime() + duration * 60000);
+
+      // 2. Buscar um profissional vinculado a este salão
+      const { data: profs, error: profError } = await supabase
+        .from('professionals')
+        .select('id')
+        .eq('salon_id', salon.id)
+        .limit(1);
+
+      if (profError || !profs || profs.length === 0) {
+        throw new Error("Não foi possível encontrar um profissional para este salão.");
+      }
+
+      // 3. Inserir agendamento na tabela slots
+      const { error: insertError } = await supabase
+        .from('slots')
+        .insert([{
+          professional_id: profs[0].id,
+          service_id: bookingData.service.id,
+          start_time: startTime.toISOString(),
+          end_time: endTime.toISOString(),
+          client_name: bookingData.clientName,
+          client_phone: bookingData.clientPhone,
+          status: 'confirmed'
+        }]);
+
+      if (insertError) throw insertError;
+
+      setStep(4); // Vai para a tela de sucesso
+    } catch (err) {
+      console.error("Erro ao agendar:", err);
+      alert("Erro ao realizar agendamento: " + err.message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   if (loading) return <div style={{ padding: '50px', textAlign: 'center' }}>A carregar...</div>;
   if (!salon) return <div style={{ padding: '50px', textAlign: 'center' }}>Salão não encontrado.</div>;
 
   return (
     <div style={{ maxWidth: '500px', margin: '0 auto', backgroundColor: '#f9f9f9', minHeight: '100vh', padding: '20px' }}>
-      {/* Header do Salão */}
       <header style={{ textAlign: 'center', marginBottom: '30px' }}>
         <h1 style={{ color: COLORS.deepCharcoal, marginBottom: '5px' }}>{salon.name}</h1>
         <div style={{ fontSize: '0.9rem', color: '#666', display: 'flex', justifyContent: 'center', gap: '15px' }}>
@@ -61,7 +108,6 @@ export default function PublicBookingPage() {
         </div>
       </header>
 
-      {/* Passo 1: Escolha de Serviço */}
       {step === 1 && (
         <div>
           <h3 style={{ marginBottom: '15px' }}>Escolha o serviço:</h3>
@@ -89,7 +135,6 @@ export default function PublicBookingPage() {
         </div>
       )}
 
-      {/* Passo 2: Data e Hora (Placeholder simplificado) */}
       {step === 2 && (
         <div>
           <button onClick={() => setStep(1)} style={{ background: 'none', border: 'none', color: '#666', cursor: 'pointer' }}>← Voltar</button>
@@ -105,7 +150,6 @@ export default function PublicBookingPage() {
         </div>
       )}
 
-      {/* Passo 3: Confirmação Final */}
       {step === 3 && (
         <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '15px', boxShadow: '0 4px 10px rgba(0,0,0,0.05)' }}>
           <h3 style={{ marginTop: 0 }}>Quase lá!</h3>
@@ -124,10 +168,30 @@ export default function PublicBookingPage() {
             onChange={e => setBookingData({...bookingData, clientPhone: e.target.value})}
           />
           <button 
-            style={{ width: '100%', padding: '15px', backgroundColor: COLORS.sageGreen, color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}
-            onClick={() => alert("Agendamento realizado com sucesso! (Aqui faremos o insert no Supabase)")}
+            disabled={isSubmitting}
+            style={{ 
+              width: '100%', 
+              padding: '15px', 
+              backgroundColor: isSubmitting ? '#ccc' : COLORS.sageGreen, 
+              color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' 
+            }}
+            onClick={handleConfirm}
           >
-            Confirmar Agendamento
+            {isSubmitting ? "Gravando..." : "Confirmar Agendamento"}
+          </button>
+        </div>
+      )}
+
+      {step === 4 && (
+        <div style={{ textAlign: 'center', padding: '40px 20px' }}>
+          <CheckCircle2 size={60} color={COLORS.sageGreen} style={{ marginBottom: '20px' }} />
+          <h2 style={{ color: COLORS.deepCharcoal }}>Agendamento Confirmado!</h2>
+          <p style={{ color: '#666' }}>O salão já recebeu seu pedido. Esperamos por você!</p>
+          <button 
+            onClick={() => setStep(1)}
+            style={{ marginTop: '20px', padding: '10px 20px', backgroundColor: 'transparent', border: `1px solid ${COLORS.sageGreen}`, color: COLORS.sageGreen, borderRadius: '8px', cursor: 'pointer' }}
+          >
+            Fazer outro agendamento
           </button>
         </div>
       )}
