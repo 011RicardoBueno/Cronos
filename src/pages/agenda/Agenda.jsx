@@ -1,105 +1,95 @@
-import React, { useEffect } from "react";
-import { useSalon } from "../../context/SalonContext"; // Importação do Contexto
-import { useProfessionalSlots } from "../../hooks/useProfessionalSlots";
-import { useProfessionalFilter } from "../../hooks/useProfessionalFilter";
-import { deleteSlot, updateSlotTime } from "../../services/supabaseService";
+import React, { useState, useEffect, useCallback } from "react";
+import { useSalon } from "../../context/SalonContext";
+// Ajustado para o caminho correto segundo sua árvore
+import { supabase } from "../../lib/supabase"; 
+import ProfessionalCalendar from "../../components/ProfessionalCalendar";
 import BackButton from "../../components/ui/BackButton";
 import { COLORS } from "../../constants/dashboard";
-import ProfessionalsSection from "../../components/ProfessionalsSection";
 
 export default function Agenda() {
-  // 1. Pegamos os dados globais do SalonContext (Isso evita o re-loading infinito)
-  const { 
-    salon, 
-    services, 
-    professionals, 
-    loading: loadingContext, 
-    error: errorContext,
-    refreshData 
-  } = useSalon();
+  const { salon, professionals } = useSalon();
+  const [slotsByProfessional, setSlotsByProfessional] = useState({});
+  const [loading, setLoading] = useState(true);
 
-  // 2. Gerenciar filtro de profissional
-  const {
-    selectedProfessionalId,
-    setSelectedProfessionalId
-  } = useProfessionalFilter("all");
+  const loadAgendaData = useCallback(async () => {
+    // Verificação de segurança para evitar loops ou erros de undefined
+    if (!professionals || professionals.length === 0) {
+      setLoading(false);
+      return;
+    }
+    
+    setLoading(true);
+    try {
+      const profIds = professionals.map(p => p.id);
+      
+      // Buscamos os slots e o nome do serviço associado
+      const { data, error } = await supabase
+        .from('slots')
+        .select(`
+          *,
+          services (name)
+        `)
+        .in('professional_id', profIds);
 
-  // 3. Gerenciar slots (agendamentos) - Lógica específica da página de agenda
-  const {
-    slotsByProfessional,
-    loadingSlots,
-    loadProfessionalSlots,
-    updateSlotsAfterDelete,
-    updateSlotsAfterMove,
-    setSlotsByProfessional
-  } = useProfessionalSlots();
+      if (error) throw error;
 
-  // 4. Carregar slots assim que os profissionais estiverem disponíveis no contexto
+      // Organizamos o mapa de profissionais
+      const map = {};
+      professionals.forEach(p => { map[p.id] = []; });
+      
+      data?.forEach(slot => {
+        if (map[slot.professional_id]) {
+          map[slot.professional_id].push(slot);
+        }
+      });
+      
+      setSlotsByProfessional(map);
+    } catch (err) {
+      console.error("Erro ao carregar agenda:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, [professionals]);
+
   useEffect(() => {
-    if (professionals && professionals.length > 0) {
-      loadProfessionalSlots(professionals);
-    }
-  }, [professionals, loadProfessionalSlots]);
-
-  // 5. Funções de manipulação
-  const handleDeleteSlot = async (slotId, profId) => {
-    if (!window.confirm("Deseja realmente cancelar este agendamento?")) return;
-    try {
-      await deleteSlot(slotId);
-      updateSlotsAfterDelete(profId, slotId);
-    } catch (err) {
-      alert("Erro ao cancelar: " + err.message);
-    }
-  };
-
-  const handleMoveSlot = async ({ slotId, professionalId, newStart }) => {
-    try {
-      await updateSlotTime(slotId, newStart);
-      updateSlotsAfterMove(professionalId, slotId, newStart.toISOString());
-    } catch (err) {
-      alert("Erro ao mover agendamento: " + err.message);
-    }
-  };
-
-  // 6. Verificação de estados de carregamento
-  // Se o contexto ainda estiver buscando dados do salão
-  if (loadingContext) {
-    return <div style={{ padding: 40, textAlign: "center", color: COLORS.deepCharcoal }}>Carregando dados da agenda...</div>;
-  }
-
-  if (errorContext) {
-    return <div style={{ padding: 40, textAlign: "center", color: "red" }}>Erro: {errorContext}</div>;
-  }
-
-  if (!salon) {
-    return <div style={{ padding: 40, textAlign: "center" }}>Salão não encontrado ou sessão expirada.</div>;
-  }
+    loadAgendaData();
+  }, [loadAgendaData]);
 
   return (
-    <div style={{ backgroundColor: COLORS.offWhite, minHeight: "100vh", paddingBottom: "40px" }}>
-      <div style={{ maxWidth: "1200px", margin: "0 auto", padding: "20px" }}>
-        
-        {/* Botão de Retorno Centralizado */}
+    <div style={{ backgroundColor: COLORS.offWhite, minHeight: "100vh", padding: "20px" }}>
+      <div style={{ maxWidth: "1200px", margin: "0 auto" }}>
         <BackButton colors={COLORS} />
-
-        <h2 style={{ marginBottom: "20px", color: COLORS.deepCharcoal }}>
-          Agenda: {salon.name}
+        <h2 style={{ color: COLORS.deepCharcoal, margin: "20px 0" }}>
+          Agenda: {salon?.name || "Carregando..."}
         </h2>
 
-        {/* Componente que renderiza o calendário e os profissionais */}
-        <ProfessionalsSection
-          professionals={professionals}
-          selectedProfessionalId={selectedProfessionalId}
-          setSelectedProfessionalId={setSelectedProfessionalId}
-          services={services}
-          slotsByProfessional={slotsByProfessional}
-          setSlotsByProfessional={setSlotsByProfessional}
-          loadDashboardData={refreshData} // Agora usamos o refresh do contexto
-          handleDeleteSlot={handleDeleteSlot}
-          handleMoveSlot={handleMoveSlot}
-          colors={COLORS}
-          loadingSlots={loadingSlots}
-        />
+        {loading ? (
+          <div style={{ textAlign: 'center', padding: '20px' }}>Carregando agendamentos...</div>
+        ) : professionals?.length > 0 ? (
+          professionals.map(pro => (
+            <div key={pro.id} style={{ 
+              backgroundColor: 'white', 
+              padding: '20px', 
+              borderRadius: '16px', 
+              marginBottom: '30px', 
+              boxShadow: '0 2px 8px rgba(0,0,0,0.1)' 
+            }}>
+              <h3 style={{ marginBottom: '15px', color: COLORS.deepCharcoal }}>
+                Profissional: {pro.name}
+              </h3>
+              <ProfessionalCalendar
+                slots={slotsByProfessional[pro.id] || []}
+                handleDeleteSlot={async (id) => {
+                  if(!window.confirm("Deseja excluir este agendamento?")) return;
+                  await supabase.from('slots').delete().eq('id', id);
+                  loadAgendaData(); // Recarrega os dados após deletar
+                }}
+              />
+            </div>
+          ))
+        ) : (
+          <p style={{ textAlign: 'center' }}>Nenhum profissional encontrado.</p>
+        )}
       </div>
     </div>
   );

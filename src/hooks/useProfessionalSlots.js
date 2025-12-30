@@ -1,4 +1,3 @@
-// hooks/useProfessionalSlots.js
 import { useState, useCallback } from 'react';
 import { fetchProfessionalSlots } from '../services/supabaseService';
 
@@ -23,7 +22,22 @@ export const useProfessionalSlots = () => {
       
       const slotsMap = {};
       professionals.forEach((pro, idx) => {
-        slotsMap[pro.id] = slotsResults[idx] || [];
+        const rawSlots = slotsResults[idx] || [];
+        
+        // Mapeamento aprimorado para garantir compatibilidade visual
+        slotsMap[pro.id] = rawSlots.map(slot => {
+          // Prioriza start_time (formato novo) mas aceita time (formato antigo)
+          const actualTime = slot.start_time || slot.time;
+          
+          return {
+            ...slot,
+            // O componente de agenda geralmente precisa da prop 'time'
+            time: actualTime, 
+            start_time: actualTime,
+            // Garante que o ID do profissional esteja presente no objeto do slot
+            professionalId: slot.professional_id || pro.id 
+          };
+        });
       });
       
       setSlotsByProfessional(slotsMap);
@@ -48,7 +62,8 @@ export const useProfessionalSlots = () => {
     setSlotsByProfessional(prev => ({
       ...prev,
       [professionalId]: prev[professionalId]?.map(s => 
-        s.id === slotId ? { ...s, time: newTime } : s
+        // Atualizamos todas as referências de tempo para manter a consistência
+        s.id === slotId ? { ...s, time: newTime, start_time: newTime } : s
       ) || []
     }));
   }, []);

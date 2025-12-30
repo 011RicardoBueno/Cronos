@@ -1,56 +1,50 @@
-// src/components/ProfessionalsSection.jsx
-import React from "react";
-import ProfessionalSlotForm from "./ProfessionalSlotForm";
-import ProfessionalCalendar from "./ProfessionalCalendar";
+import React from 'react';
+import ProfessionalCalendar from './ProfessionalCalendar';
 
-export default function ProfessionalsSection({
-  professionals,
-  selectedProfessionalId,
-  services,
-  slotsByProfessional,
-  setSlotsByProfessional,
-  handleDeleteSlot,
+const ProfessionalsSection = ({ 
+  professionals, 
+  selectedProfessionalId, 
+  slotsByProfessional, 
+  handleDeleteSlot, 
   handleMoveSlot,
-  colors
-}) {
-  const professionalsToRender =
-    selectedProfessionalId === "all"
-      ? professionals
-      : professionals.filter(p => p.id === selectedProfessionalId);
+  colors 
+}) => {
+  
+  // Filtra os profissionais que devem aparecer
+  const filteredProfessionals = professionals.filter(pro => 
+    selectedProfessionalId === "all" || pro.id === selectedProfessionalId
+  );
 
   return (
-    <>
-      {professionalsToRender.map(pro => (
-        <section
-          key={pro.id}
-          style={{
-            backgroundColor: colors.white,
-            borderRadius: "16px",
-            padding: "30px",
-            marginBottom: "40px",
-            border: `1px solid ${colors.warmSand}`,
-          }}
-        >
-          <h2 style={{ color: colors.deepCharcoal, marginBottom: "20px" }}>
-            Agenda: <strong>{pro.name}</strong>
-          </h2>
-
-          <ProfessionalSlotForm
-            professionalId={pro.id}
-            services={services}
-            slotsByProfessional={slotsByProfessional}
-            setSlotsByProfessional={setSlotsByProfessional}
-            colors={colors}
-          />
-
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
+      {filteredProfessionals.map(pro => (
+        <div key={pro.id} style={{ 
+          backgroundColor: 'white', 
+          padding: '20px', 
+          borderRadius: '16px',
+          boxShadow: '0 4px 6px rgba(0,0,0,0.05)' 
+        }}>
+          <h3 style={{ color: colors.deepCharcoal, marginBottom: '15px' }}>
+            Agenda: {pro.name}
+          </h3>
+          
           <ProfessionalCalendar
-            slots={slotsByProfessional[pro.id] || []}
+            // GARANTIA: Se o mapa estiver vazio para esse ID, envia um array vazio
+            slots={slotsByProfessional[pro.id] || []} 
             professionalId={pro.id}
             handleDeleteSlot={handleDeleteSlot}
             handleMoveSlot={handleMoveSlot}
           />
-        </section>
+        </div>
       ))}
-    </>
+      
+      {filteredProfessionals.length === 0 && (
+        <p style={{ textAlign: 'center', color: '#666' }}>
+          Nenhum profissional encontrado.
+        </p>
+      )}
+    </div>
   );
-}
+};
+
+export default ProfessionalsSection;
