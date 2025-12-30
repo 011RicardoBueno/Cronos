@@ -1,32 +1,64 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Users, Calendar, Scissors, Settings } from 'lucide-react';
 import DashboardCard from './cards/DashboardCard';
+// Importamos direto da sua constante para garantir que nunca seja undefined
 import { COLORS } from '../../constants/dashboard';
 
-export default function DashboardModules({ navigate }) {
+const DashboardModules = () => {
+  const navigate = useNavigate();
+
+  // Usamos COLORS (importado) em vez de colors (vinda de props)
   const modules = [
-    { title: 'Agenda', description: 'Visualizar e gerenciar agendamentos', route: '/agenda' },
-    { title: 'Serviços', description: 'Gerenciar catálogo de serviços', route: '/servicos' },
-    { title: 'Fidelidade', description: 'Programa de fidelidade e clientes VIP', route: '/loyalty' },
-    { title: 'Comissões', description: 'Visualizar e controlar comissões', route: '/commissions' },
-    { title: 'Pagamentos', description: 'Controle de pagamentos online', route: '/payments' },
+    {
+      title: "Agenda",
+      description: "Gerenciar horários e serviços",
+      icon: <Calendar size={24} />,
+      path: "/agenda",
+      color: COLORS.sageGreen
+    },
+    {
+      title: "Profissionais",
+      description: "Equipe, especialidades e acesso",
+      icon: <Users size={24} />,
+      path: "/profissionais",
+      color: COLORS.deepCharcoal
+    },
+    {
+      title: "Serviços",
+      description: "Menu de tratamentos e preços",
+      icon: <Scissors size={24} />,
+      path: "/servicos",
+      color: COLORS.sageGreen
+    },
+    {
+      title: "Configurações",
+      description: "Dados do salão e horários",
+      icon: <Settings size={24} />,
+      path: "/configuracoes",
+      color: COLORS.warmBeige
+    }
   ];
 
   return (
-    <div style={{
-      display: 'flex',
-      flexWrap: 'wrap',
-      justifyContent: 'center',
-      margin: '30px 0'
+    <div style={{ 
+      display: 'grid', 
+      gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', 
+      gap: '20px',
+      marginTop: '30px' 
     }}>
-      {modules.map(mod => (
-        <DashboardCard
-          key={mod.title}
+      {modules.map((mod, index) => (
+        <DashboardCard 
+          key={index}
           title={mod.title}
           description={mod.description}
-          colors={COLORS}
-          onClick={() => navigate(mod.route)}
+          icon={mod.icon}
+          onClick={() => navigate(mod.path)}
+          accentColor={mod.color}
         />
       ))}
     </div>
   );
-}
+};
+
+export default DashboardModules;
