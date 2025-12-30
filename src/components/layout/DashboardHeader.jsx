@@ -1,8 +1,11 @@
 import React from 'react';
 import { supabase } from "../../lib/supabase";
+import { useSalon } from '../../context/SalonContext'; // Importe o contexto
+import { COLORS } from '../../constants/dashboard'; // Importe suas cores constantes
 
-const DashboardHeader = ({ salonName, todaySlotsCount, colors, upcomingFeatures = [] }) => {
-  
+const DashboardHeader = () => {
+  const { salon, loading } = useSalon(); // Pegue os dados direto daqui
+
   const handleLogout = async () => {
     if (window.confirm("Deseja realmente sair?")) {
       const { error } = await supabase.auth.signOut();
@@ -15,20 +18,25 @@ const DashboardHeader = ({ salonName, todaySlotsCount, colors, upcomingFeatures 
   };
 
   const theme = {
-    text: colors?.deepCharcoal || "#333",
-    subtext: colors?.mutedTaupe || "#666",
-    accent: colors?.warmSand || "#f3eee7",
+    text: COLORS?.deepCharcoal || "#333",
+    subtext: "#666",
     danger: "#e74c3c"
   };
 
   return (
-    <header style={{ marginBottom: "30px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+    <header style={{ 
+      marginBottom: "30px", 
+      display: "flex", 
+      justifyContent: "space-between", 
+      alignItems: "center",
+      padding: "10px 0" 
+    }}>
       <div>
         <h1 style={{ fontSize: "24px", color: theme.text, margin: 0 }}>
-          {salonName || "Carregando..."}
+          {loading ? "Carregando..." : (salon?.name || "Bem-vindo!")}
         </h1>
         <p style={{ color: theme.subtext, margin: "5px 0 0 0" }}>
-          {todaySlotsCount > 0 ? `Hoje: ${todaySlotsCount} agendamentos` : "Bem-vindo ao Cronos"}
+          {salon ? "Painel Administrativo" : "Carregando configurações..."}
         </p>
       </div>
 
@@ -41,7 +49,16 @@ const DashboardHeader = ({ salonName, todaySlotsCount, colors, upcomingFeatures 
           color: theme.danger,
           borderRadius: '6px',
           cursor: 'pointer',
-          fontWeight: '500'
+          fontWeight: '500',
+          transition: 'all 0.2s'
+        }}
+        onMouseEnter={(e) => {
+          e.target.style.backgroundColor = theme.danger;
+          e.target.style.color = 'white';
+        }}
+        onMouseLeave={(e) => {
+          e.target.style.backgroundColor = 'transparent';
+          e.target.style.color = theme.danger;
         }}
       >
         Sair
@@ -50,5 +67,4 @@ const DashboardHeader = ({ salonName, todaySlotsCount, colors, upcomingFeatures 
   );
 };
 
-// ESTA LINHA É A QUE ESTAVA FALTANDO E CAUSANDO O ERRO NO VITE
 export default DashboardHeader;

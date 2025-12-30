@@ -1,7 +1,9 @@
-import SalonBooking from '../pages/client/SalonBooking';
+import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useSalon } from '../context/SalonContext';
+
+// Importações de Páginas
 import Dashboard from '../pages/Dashboard';
 import Login from '../pages/Login';
 import SalonSetup from '../components/salon/SalonSetup';
@@ -9,16 +11,33 @@ import Agenda from '../pages/agenda/Agenda';
 import Servicos from '../pages/servicos/Servicos';
 import Profissionais from '../pages/profissionais/Profissionais';
 import Configuracoes from '../pages/configuracoes/Configuracoes';
-import Explorer from '../pages/client/Explorer'; // Importe o Explorer
+import Explorer from '../pages/client/Explorer'; 
+import SalonBooking from '../pages/client/SalonBooking';
+import PublicBookingPage from '../pages/public/PublicBookingPage'; // Caminho corrigido (../)
 
 export const AppRoutes = () => {
   const { session, loading: authLoading, user } = useAuth();
   const { loading: salonLoading, needsSetup } = useSalon();
 
-  if (authLoading || salonLoading) {
-    return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>Carregando...</div>;
+  // 1. ROTAS TOTALMENTE PÚBLICAS (Acessíveis sem login)
+  // Colocamos antes de qualquer verificação de session
+  if (window.location.pathname.startsWith('/p/')) {
+    return (
+      <Routes>
+        <Route path="/p/:slug" element={<PublicBookingPage />} />
+      </Routes>
+    );
   }
 
+  if (authLoading || salonLoading) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+        Carregando...
+      </div>
+    );
+  }
+
+  // 2. SE NÃO ESTÁ LOGADO (E não é rota pública), VAI PARA LOGIN
   if (!session) {
     return (
       <Routes>
@@ -28,19 +47,18 @@ export const AppRoutes = () => {
     );
   }
 
-  // Pega a role do metadado do usuário
   const userRole = user?.user_metadata?.role;
 
-  // --- FLUXO DO CLIENTE ---
-if (userRole === 'client') {
-  return (
-    <Routes>
-      <Route path="/agendamento-cliente" element={<Explorer />} />
-      <Route path="/agendar/:id" element={<SalonBooking />} />
-      <Route path="*" element={<Navigate to="/agendamento-cliente" replace />} />
-    </Routes>
-  );
-}
+  // --- FLUXO DO CLIENTE LOGADO (App do Usuário) ---
+  if (userRole === 'client') {
+    return (
+      <Routes>
+        <Route path="/agendamento-cliente" element={<Explorer />} />
+        <Route path="/agendar/:id" element={<SalonBooking />} />
+        <Route path="*" element={<Navigate to="/agendamento-cliente" replace />} />
+      </Routes>
+    );
+  }
 
   // --- FLUXO DO ADMIN (DONO DE SALÃO) ---
   if (needsSetup) {

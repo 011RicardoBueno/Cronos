@@ -1,62 +1,58 @@
-import { useState } from "react";
-import { supabase } from "../lib/supabase";
+import React, { useState, useEffect } from 'react';
+import moment from 'moment';
 
-export default function ProfessionalSlotForm({ services, professionalId, slotsByProfessional, setSlotsByProfessional }) {
-  const [slotTime, setSlotTime] = useState("");
-  const [slotServiceId, setSlotServiceId] = useState("");
+export default function ProfessionalSlotForm({ services, onSubmit, initialDate, closingTime }) {
+  const [formData, setFormData] = useState({
+    client_name: '',
+    service_id: '',
+    start_time: initialDate ? moment(initialDate).format('YYYY-MM-DDTHH:mm') : '',
+    end_time: ''
+  });
 
-  const handleCreateSlot = async (e) => {
+  useEffect(() => {
+    if (formData.service_id && formData.start_time) {
+      const selectedService = services.find(s => s.id === formData.service_id);
+      if (selectedService) {
+        const duration = selectedService.duration_minutes;
+        const endTime = moment(formData.start_time).add(duration, 'minutes').format('YYYY-MM-DDTHH:mm');
+        setFormData(prev => ({ ...prev, end_time: endTime }));
+      }
+    }
+  }, [formData.service_id, formData.start_time, services]);
+
+  const handleSubmit = (e) => {
     e.preventDefault();
-    if (!slotServiceId) return;
 
-    const { data, error } = await supabase
-      .from("slots")
-      .insert([{ professional_id: professionalId, time: slotTime, service_id: slotServiceId }])
-      .select("*, services(name)")
-      .single();
+    // Lógica da trava de segurança (Horário de Fechamento)
+    if (closingTime && formData.end_time) {
+      const [closeHour, closeMinute] = closingTime.split(':');
+      const endMoment = moment(formData.end_time);
+      
+      // Criamos um objeto moment para o limite do dia do agendamento
+      const limitMoment = moment(formData.end_time)
+        .set('hour', parseInt(closeHour))
+        .set('minute', parseInt(closeMinute))
+        .set('second', 0);
 
-    if (error) console.error(error);
-    else setSlotsByProfessional((prev) => ({
-      ...prev,
-      [professionalId]: [...(prev[professionalId] || []), data],
-    }));
+      if (endMoment.isAfter(limitMoment)) {
+        alert(`Operação Inválida: Este serviço termina às ${endMoment.format('HH:mm')}, mas o salão fecha às ${closingTime}.`);
+        return;
+      }
+    }
 
-    setSlotTime("");
-    setSlotServiceId("");
+    onSubmit(formData);
   };
 
   return (
-    <form onSubmit={handleCreateSlot} style={{ marginBottom: "15px", display: "flex", gap: "10px", flexWrap: "wrap" }}>
-      <input
-        type="datetime-local"
-        value={slotTime}
-        onChange={(e) => setSlotTime(e.target.value)}
-        required
-        style={{ padding: "8px", borderRadius: "8px", border: "1px solid #F3EEEA", flex: "1 1 200px" }}
-      />
-      <select
-        value={slotServiceId}
-        onChange={(e) => setSlotServiceId(e.target.value)}
-        required
-        style={{ padding: "8px", borderRadius: "8px", border: "1px solid #F3EEEA", flex: "1 1 150px" }}
-      >
-        <option value="">Serviço</option>
-        {services.map((s) => (
-          <option key={s.id} value={s.id}>{s.name}</option>
-        ))}
-      </select>
-      <button
-        type="submit"
-        style={{
-          padding: "8px 16px",
-          borderRadius: "8px",
-          backgroundColor: "#DBC4C4",
-          border: "none",
-          color: "#403D39",
-          cursor: "pointer",
-        }}
-      >
-        Adicionar
+    <form onSubmit={handleSubmit} style={{ /* seus estilos atuais */ }}>
+      {/* ... campos de input (iguais ao anterior) ... */}
+      
+      <div style={{ marginTop: '10px', fontSize: '0.8rem', color: '#666' }}>
+        * O encerramento do salão é às <strong>{closingTime || '20:00'}</strong>.
+      </div>
+
+      <button type="submit" style={{ /* seus estilos */ }}>
+        Agendar Cliente
       </button>
     </form>
   );

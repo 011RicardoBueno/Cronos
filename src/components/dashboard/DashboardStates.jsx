@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { CalendarCheck, Users, DollarSign, TrendingUp } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { CalendarCheck, Users, DollarSign, TrendingUp, RefreshCw } from 'lucide-react';
 import { COLORS } from '../../constants/dashboard';
 import { supabase } from '../../lib/supabase';
 import { useSalon } from '../../context/SalonContext';
@@ -18,7 +18,7 @@ const StatCard = ({ label, value, icon: Icon, trend, color, loading }) => (
     <div style={{ backgroundColor: `${color}15`, padding: '12px', borderRadius: '12px', color: color }}>
       <Icon size={24} />
     </div>
-    <div>
+    <div style={{ flex: 1 }}>
       <p style={{ margin: 0, color: '#666', fontSize: '0.85rem', fontWeight: '500' }}>{label}</p>
       <h3 style={{ margin: '4px 0', fontSize: '1.4rem', color: COLORS.deepCharcoal }}>
         {loading ? '...' : value}
@@ -31,79 +31,138 @@ const StatCard = ({ label, value, icon: Icon, trend, color, loading }) => (
 );
 
 export default function DashboardStates() {
-  const { professionals } = useSalon();
-  const [todayCount, setTodayCount] = useState(0);
-  const [loading, setLoading] = useState(true);
+  const { professionals, loading: salonLoading } = useSalon();
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [statsData, setStatsData] = useState({
+    todayCount: 0,
+    expectedRevenue: 0,
+    loading: true
+  });
 
-  useEffect(() => {
-    async function fetchTodayStats() {
-      if (!professionals || professionals.length === 0) return;
-
-      try {
-        const today = new Date();
-        const startOfDay = new Date(today.setHours(0,0,0,0)).toISOString();
-        const endOfDay = new Date(today.setHours(23,59,59,999)).toISOString();
-
-        const { count, error } = await supabase
-          .from('slots')
-          .select('*', { count: 'exact', head: true })
-          .in('professional_id', professionals.map(p => p.id))
-          .gte('start_time', startOfDay)
-          .lte('start_time', endOfDay);
-
-        if (error) throw error;
-        setTodayCount(count || 0);
-      } catch (err) {
-        console.error("Erro ao procurar métricas:", err);
-      } finally {
-        setLoading(false);
-      }
+  const fetchDashboardData = useCallback(async (showIndicator = false) => {
+    if (!professionals || professionals.length === 0) {
+      setStatsData(prev => ({ ...prev, loading: false }));
+      return;
     }
 
-    fetchTodayStats();
+    if (showIndicator) setIsRefreshing(true);
+
+    try {
+      const today = new Date();
+      const startOfDay = new Date(today.setHours(0,0,0,0)).toISOString();
+      const endOfDay = new Date(today.setHours(23,59,59,999)).toISOString();
+
+      const { data, error } = await supabase
+        .from('slots')
+        .select(`id, services (price)`)
+        .in('professional_id', professionals.map(p => p.id))
+        .gte('start_time', startOfDay)
+        .lte('start_time', endOfDay);
+
+      if (error) throw error;
+
+      const count = data?.length || 0;
+      const revenue = data?.reduce((acc, slot) => acc + (slot.services?.price || 0), 0);
+
+      setStatsData({
+        todayCount: count,
+        expectedRevenue: revenue,
+        loading: false
+      });
+    } catch (err) {
+      console.error("Erro ao carregar métricas:", err);
+    } finally {
+      setIsRefreshing(false);
+      setStatsData(prev => ({ ...prev, loading: false }));
+    }
   }, [professionals]);
+
+  useEffect(() => {
+    if (!salonLoading && professionals?.length > 0) {
+      fetchDashboardData();
+    }
+  }, [fetchDashboardData, professionals, salonLoading]);
 
   const stats = [
     {
       label: "Agendamentos Hoje",
-      value: todayCount.toString(),
+      value: statsData.todayCount.toString(),
       icon: CalendarCheck,
-      trend: "Dados em tempo real",
+      trend: "Total do dia",
       color: COLORS.sageGreen,
-      loading: loading
+      loading: statsData.loading || salonLoading
     },
     {
       label: "Novos Clientes",
-      value: "8", // Futuramente: buscar count de 'clients' criado_em hoje
+      value: "---",
       icon: Users,
-      trend: "+12%",
-      color: COLORS.deepCharcoal
+      trend: "Este mês",
+      color: COLORS.deepCharcoal,
+      loading: statsData.loading || salonLoading
     },
     {
       label: "Receita Prevista",
-      value: "R$ ---", // Futuramente: sum(services.price)
+      value: `R$ ${statsData.expectedRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
       icon: DollarSign,
-      trend: "Pendente",
-      color: "#2D6A4F"
+      trend: "Total bruto",
+      color: "#2D6A4F",
+      loading: statsData.loading || salonLoading
     },
     {
       label: "Ocupação",
-      value: "78%",
+      value: "---",
       icon: TrendingUp,
-      trend: "Média",
-      color: COLORS.warmBeige
+      trend: "Eficiência",
+      color: COLORS.warmBeige,
+      loading: statsData.loading || salonLoading
     }
   ];
 
   return (
-    <div style={{ 
-      display: 'grid', 
-      gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', 
-      gap: '20px' 
-    }}>
-      {stats.map((stat, index) => (
-        <StatCard key={index} {...stat} />
-      ))}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+        <button 
+          onClick={() => fetchDashboardData(true)}
+          disabled={isRefreshing || statsData.loading}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            background: 'none',
+            border: 'none',
+            color: '#666',
+            fontSize: '0.85rem',
+            cursor: 'pointer',
+            padding: '5px 10px',
+            borderRadius: '5px',
+            transition: 'all 0.2s'
+          }}
+          onMouseEnter={(e) => e.target.style.color = COLORS.sageGreen}
+          onMouseLeave={(e) => e.target.style.color = '#666'}
+        >
+          <RefreshCw size={16} className={isRefreshing ? 'spin-animation' : ''} style={{
+            animation: isRefreshing ? 'spin 1s linear infinite' : 'none'
+          }} />
+          {isRefreshing ? 'Atualizando...' : 'Atualizar dados'}
+        </button>
+      </div>
+
+      <div style={{ 
+        display: 'grid', 
+        gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', 
+        gap: '20px' 
+      }}>
+        {stats.map((stat, index) => (
+          <StatCard key={index} {...stat} />
+        ))}
+      </div>
+
+      <style>{`
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
     </div>
   );
 }
