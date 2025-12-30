@@ -1,56 +1,87 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { fetchSalonData, fetchServicesAndProfessionals } from '../services/supabaseService';
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import { supabase } from '../lib/supabase';
+import { useAuth } from './AuthContext';
 
 const SalonContext = createContext();
 
-export const SalonProvider = ({ children, session }) => {
+export const SalonProvider = ({ children }) => {
   const [salon, setSalon] = useState(null);
-  const [services, setServices] = useState([]);
-  const [professionals, setProfessionals] = useState([]);
+  const [services, setServices] = useState([]); // ADICIONADO
+  const [professionals, setProfessionals] = useState([]); // ADICIONADO
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [needsSetup, setNeedsSetup] = useState(false);
 
-  const loadAllData = useCallback(async () => {
-    if (!session?.user?.id) return;
-    
-    setLoading(true);
+  const { user } = useAuth();
+
+  const loadSalonData = async () => {
     try {
-      // 1. Dados do Salão
-      const userData = await fetchSalonData(session.user.id);
-      if (!userData?.salons) throw new Error("Salão não encontrado");
-      
-      const salonData = userData.salons;
-      setSalon(salonData);
-
-      // 2. Serviços e Profissionais
-      const { servicesRes, professionalsRes } = await fetchServicesAndProfessionals(salonData.id);
-      
-      setServices(servicesRes.data || []);
-      setProfessionals(professionalsRes.data || []);
+      setLoading(true);
       setError(null);
+      
+      if (!user) {
+        setLoading(false);
+        return;
+      }
+
+      // 1. Buscar salon_id do usuário
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('salon_id')
+        .eq('id', user.id)
+        .single();
+
+      if (userError || !userData?.salon_id) {
+        setNeedsSetup(true);
+        setLoading(false);
+        return;
+      }
+
+      // 2. Buscar dados do salão, profissionais e serviços em paralelo
+      const [salonRes, professionalsRes, servicesRes] = await Promise.all([
+        supabase.from('salons').select('*').eq('id', userData.salon_id).single(),
+        supabase.from('professionals').select('*').eq('salon_id', userData.salon_id),
+        supabase.from('services').select('*').eq('salon_id', userData.salon_id)
+      ]);
+
+      if (salonRes.error) throw salonRes.error;
+
+      setSalon(salonRes.data);
+      setProfessionals(professionalsRes.data || []); // Garante que seja array
+      setServices(servicesRes.data || []); // Garante que seja array
+      setNeedsSetup(false);
+
     } catch (err) {
-      console.error("Erro no Contexto:", err);
+      console.error('Erro ao carregar dados do contexto:', err);
       setError(err.message);
     } finally {
       setLoading(false);
     }
-  }, [session]);
+  };
+
+  const refreshSalon = () => loadSalonData();
 
   useEffect(() => {
-    loadAllData();
-  }, [loadAllData]);
+    if (user) loadSalonData();
+    else setLoading(false);
+  }, [user]);
 
-  return (
-    <SalonContext.Provider value={{ 
-      salon, services, setServices, professionals, loading, error, refreshData: loadAllData 
-    }}>
-      {children}
-    </SalonContext.Provider>
-  );
+  const value = {
+    salon,
+    services,       // DISPONIBILIZADO
+    setServices,    // DISPONIBILIZADO
+    professionals, // DISPONIBILIZADO
+    loading,
+    error,
+    needsSetup,
+    refreshSalon
+  };
+
+  return <SalonContext.Provider value={value}>{children}</SalonContext.Provider>;
 };
 
 export const useSalon = () => {
   const context = useContext(SalonContext);
-  if (!context) throw new Error("useSalon deve ser usado dentro de um SalonProvider");
+  if (!context) throw new Error('useSalon deve ser usado dentro de SalonProvider');
   return context;
 };

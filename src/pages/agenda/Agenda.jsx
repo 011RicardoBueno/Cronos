@@ -1,32 +1,30 @@
 import React, { useEffect } from "react";
-import { useNavigate } from "react-router-dom"; // Para o botão de retorno
-import ProfessionalsSection from "../../components/ProfessionalsSection";
-import { useDashboardData } from "../../hooks/useDashboardData";
+import { useSalon } from "../../context/SalonContext"; // Importação do Contexto
 import { useProfessionalSlots } from "../../hooks/useProfessionalSlots";
 import { useProfessionalFilter } from "../../hooks/useProfessionalFilter";
 import { deleteSlot, updateSlotTime } from "../../services/supabaseService";
+import BackButton from "../../components/ui/BackButton";
 import { COLORS } from "../../constants/dashboard";
+import ProfessionalsSection from "../../components/ProfessionalsSection";
 
-export default function Agenda({ session }) {
-  const navigate = useNavigate();
+export default function Agenda() {
+  // 1. Pegamos os dados globais do SalonContext (Isso evita o re-loading infinito)
+  const { 
+    salon, 
+    services, 
+    professionals, 
+    loading: loadingContext, 
+    error: errorContext,
+    refreshData 
+  } = useSalon();
 
-  // 1. Gerenciar filtro de profissional
+  // 2. Gerenciar filtro de profissional
   const {
     selectedProfessionalId,
     setSelectedProfessionalId
   } = useProfessionalFilter("all");
 
-  // 2. Carregar dados principais
-  const { 
-    salon, 
-    services, 
-    professionals, 
-    loading, 
-    error,
-    loadData 
-  } = useDashboardData(session, selectedProfessionalId);
-
-  // 3. Gerenciar slots (agendamentos)
+  // 3. Gerenciar slots (agendamentos) - Lógica específica da página de agenda
   const {
     slotsByProfessional,
     loadingSlots,
@@ -36,14 +34,14 @@ export default function Agenda({ session }) {
     setSlotsByProfessional
   } = useProfessionalSlots();
 
-  // 4. Carregar slots quando os profissionais são carregados
+  // 4. Carregar slots assim que os profissionais estiverem disponíveis no contexto
   useEffect(() => {
     if (professionals && professionals.length > 0) {
       loadProfessionalSlots(professionals);
     }
   }, [professionals, loadProfessionalSlots]);
 
-  // 5. Funções de manipulação (Resolvendo o ReferenceError)
+  // 5. Funções de manipulação
   const handleDeleteSlot = async (slotId, profId) => {
     if (!window.confirm("Deseja realmente cancelar este agendamento?")) return;
     try {
@@ -63,38 +61,32 @@ export default function Agenda({ session }) {
     }
   };
 
-  // Estados de carregamento e erro
-  if (loading) return <div style={{ padding: 40, textAlign: "center" }}>Carregando agenda...</div>;
-  if (error) return <div style={{ padding: 40, textAlign: "center", color: "red" }}>{error}</div>;
-  if (!salon) return <div style={{ padding: 40, textAlign: "center" }}>Salão não encontrado.</div>;
+  // 6. Verificação de estados de carregamento
+  // Se o contexto ainda estiver buscando dados do salão
+  if (loadingContext) {
+    return <div style={{ padding: 40, textAlign: "center", color: COLORS.deepCharcoal }}>Carregando dados da agenda...</div>;
+  }
+
+  if (errorContext) {
+    return <div style={{ padding: 40, textAlign: "center", color: "red" }}>Erro: {errorContext}</div>;
+  }
+
+  if (!salon) {
+    return <div style={{ padding: 40, textAlign: "center" }}>Salão não encontrado ou sessão expirada.</div>;
+  }
 
   return (
     <div style={{ backgroundColor: COLORS.offWhite, minHeight: "100vh", paddingBottom: "40px" }}>
       <div style={{ maxWidth: "1200px", margin: "0 auto", padding: "20px" }}>
         
-        {/* Botão de Retorno */}
-        <button 
-          onClick={() => navigate(-1)} 
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "8px",
-            background: "none",
-            border: "none",
-            color: COLORS.deepCharcoal,
-            cursor: "pointer",
-            marginBottom: "20px",
-            fontSize: "16px",
-            fontWeight: "500"
-          }}
-        >
-          ← Voltar para o Painel
-        </button>
+        {/* Botão de Retorno Centralizado */}
+        <BackButton colors={COLORS} />
 
         <h2 style={{ marginBottom: "20px", color: COLORS.deepCharcoal }}>
           Agenda: {salon.name}
         </h2>
 
+        {/* Componente que renderiza o calendário e os profissionais */}
         <ProfessionalsSection
           professionals={professionals}
           selectedProfessionalId={selectedProfessionalId}
@@ -102,7 +94,7 @@ export default function Agenda({ session }) {
           services={services}
           slotsByProfessional={slotsByProfessional}
           setSlotsByProfessional={setSlotsByProfessional}
-          loadDashboardData={loadData}
+          loadDashboardData={refreshData} // Agora usamos o refresh do contexto
           handleDeleteSlot={handleDeleteSlot}
           handleMoveSlot={handleMoveSlot}
           colors={COLORS}

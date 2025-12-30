@@ -1,6 +1,13 @@
 import React from 'react';
 
 const DashboardHeader = ({ salonName, todaySlotsCount, colors, upcomingFeatures = [] }) => {
+  // 1. Definimos o theme aqui para evitar erros de "theme is not defined"
+  const theme = {
+    text: colors?.deepCharcoal || "#333",
+    subtext: colors?.mutedTaupe || "#666",
+    accent: colors?.warmSand || "#f3eee a"
+  };
+
   return (
     <header style={{ marginBottom: "30px" }}>
       <div style={{ 
@@ -12,33 +19,36 @@ const DashboardHeader = ({ salonName, todaySlotsCount, colors, upcomingFeatures 
       }}>
         <div>
           <h1 style={{ 
-            border: "5px solid red"
             fontSize: "28px", 
             fontWeight: "bold", 
-            color: colors.deepCharcoal,
+            color: theme.text,
             margin: 0 
           }}>
             {salonName || "Carregando..."}
           </h1>
-          <p style={{ color: colors.mutedTaupe, marginTop: "5px" }}>
+          <p style={{ color: theme.subtext, marginTop: "5px" }}>
             {todaySlotsCount > 0 
               ? `Você tem ${todaySlotsCount} agendamentos hoje.` 
-              : "Nenhum agendamento para hoje até o momento."}
+              : "Bem-vindo ao seu painel de controle."}
           </p>
         </div>
 
-        {upcomingFeatures.length > 0 && (
+        {/* 2. Bloco de Features corrigido e sem duplicação */}
+        {upcomingFeatures && upcomingFeatures.length > 0 && (
           <div style={{ 
-            backgroundColor: colors.warmSand, 
-            padding: "10px 15px", 
-            borderRadius: "12px",
-            fontSize: "14px"
+            backgroundColor: theme.accent, 
+            padding: "8px 15px", 
+            borderRadius: "10px",
+            fontSize: "13px",
+            maxWidth: "350px",
+            color: theme.text,
+            border: `1px solid ${colors?.warmSand || 'transparent'}`
           }}>
-            <strong>Novidades em breve:</strong> {upcomingFeatures.join(", ")}
+            <strong>Em breve:</strong> { JSON.stringify(upcomingFeatures) }
           </div>
         )}
       </div>
-      <hr style={{ border: `0.5px solid ${colors.warmSand}`, marginTop: "20px" }} />
+      <hr style={{ border: `0.5px solid ${theme.accent}`, marginTop: "20px" }} />
     </header>
   );
 };

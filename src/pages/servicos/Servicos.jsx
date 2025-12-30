@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useSalon } from "../../context/SalonContext";
 import ServicesSection from "../../components/ServicesSection";
 import { COLORS } from "../../constants/dashboard";
+import BackButton from "../../components/ui/BackButton";
 
 export default function Servicos() {
   const navigate = useNavigate();
@@ -16,23 +17,7 @@ export default function Servicos() {
       <div style={{ maxWidth: "1200px", margin: "0 auto", padding: "20px" }}>
         
         {/* Botão Voltar Estilizado */}
-        <button 
-          onClick={() => navigate("/")} 
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "8px",
-            background: "none",
-            border: "none",
-            color: COLORS.deepCharcoal,
-            cursor: "pointer",
-            marginBottom: "20px",
-            fontSize: "16px",
-            fontWeight: "500"
-          }}
-        >
-          ← Voltar para o Painel
-        </button>
+        <BackButton colors={COLORS} />
 
         <h2 style={{ marginBottom: "20px", color: COLORS.deepCharcoal }}>
           Gestão de Serviços: {salon?.name}
