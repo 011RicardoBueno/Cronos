@@ -28,50 +28,62 @@ const SalonSetup = ({ onComplete }) => {
     }
 
     try {
-      // 1. Criamos o salão usando a função do contexto
       await createOrUpdateSalon(formData);
-      
-      // 2. Chamamos o callback que avisará o Dashboard para recarregar
-      if (onComplete) {
-        onComplete();
-      }
+      if (onComplete) onComplete();
     } catch (err) {
       setSubmitError(err.message || 'Erro ao salvar salão. Tente novamente.');
     }
+  };
+
+  // Definição dos estilos dentro do componente para garantir consistência
+  const labelStyle = { 
+    display: 'block', 
+    marginBottom: '8px', 
+    color: COLORS.deepCharcoal, 
+    fontWeight: '500', 
+    fontSize: '14px' 
+  };
+
+  const inputStyle = {
+    width: '100%',
+    padding: '14px 16px',
+    border: `1px solid ${COLORS.dustyRose}`, // Mesma borda da Login
+    borderRadius: '8px',
+    fontSize: '16px',
+    color: COLORS.deepCharcoal,
+    backgroundColor: COLORS.offWhite, // Força o fundo claro igual ao Login
+    boxSizing: 'border-box',
+    outline: 'none',
+    transition: 'border-color 0.2s'
   };
 
   return (
     <div style={{
       display: 'flex',
       justifyContent: 'center',
-      padding: '20px 0', // Removido minHeight 100vh para encaixar no Dashboard
+      padding: '40px 0',
     }}>
       <div style={{
         backgroundColor: COLORS.white,
-        borderRadius: '16px', // Bordas um pouco mais arredondadas
+        borderRadius: '16px',
         padding: '40px',
-        boxShadow: '0 10px 30px rgba(0,0,0,0.08)', // Sombra mais suave e moderna
-        maxWidth: '500px',
+        boxShadow: '0 10px 40px rgba(0,0,0,0.1)', // Sombra igual ao Login
+        maxWidth: '480px',
         width: '100%'
       }}>
-        <h2 style={{ color: COLORS.deepCharcoal, marginBottom: '10px', textAlign: 'center' }}>
-          👋 Bem-vindo ao Cronos!
-        </h2>
-        
-        <p style={{
-          color: COLORS.deepCharcoal,
-          marginBottom: '30px',
-          textAlign: 'center',
-          opacity: 0.8,
-          fontSize: '15px'
-        }}>
-          Para começar, vamos configurar seu salão. 
-          Digite as informações básicas abaixo.
-        </p>
+        <div style={{ textAlign: 'center', marginBottom: '32px' }}>
+          <h2 style={{ color: COLORS.deepCharcoal, fontSize: '28px', fontWeight: '700', marginBottom: '8px' }}>
+            👋 Bem-vindo ao Cronos!
+          </h2>
+          <p style={{ color: '#666', fontSize: '15px', lineHeight: '1.5' }}>
+            Para começar, vamos configurar seu salão.<br/> 
+            Digite as informações básicas abaixo.
+          </p>
+        </div>
 
         <form onSubmit={handleSubmit}>
-          {/* Input de Nome */}
-          <div style={inputGroupStyle}>
+          {/* Campo Nome */}
+          <div style={{ marginBottom: '24px' }}>
             <label style={labelStyle}>Nome do Salão *</label>
             <input
               type="text"
@@ -85,8 +97,8 @@ const SalonSetup = ({ onComplete }) => {
             />
           </div>
 
-          {/* Input de Telefone */}
-          <div style={inputGroupStyle}>
+          {/* Campo Telefone */}
+          <div style={{ marginBottom: '24px' }}>
             <label style={labelStyle}>Telefone de Contato</label>
             <input
               type="tel"
@@ -98,8 +110,8 @@ const SalonSetup = ({ onComplete }) => {
             />
           </div>
 
-          {/* Input de Endereço */}
-          <div style={inputGroupStyle}>
+          {/* Campo Endereço */}
+          <div style={{ marginBottom: '32px' }}>
             <label style={labelStyle}>Endereço Completo</label>
             <input
               type="text"
@@ -113,14 +125,14 @@ const SalonSetup = ({ onComplete }) => {
 
           {(submitError || contextError) && (
             <div style={{
-              color: '#b91c1c',
+              color: '#dc2626',
               backgroundColor: '#fef2f2',
-              padding: '12px',
+              padding: '12px 16px',
               borderRadius: '8px',
-              marginBottom: '20px',
+              marginBottom: '24px',
               fontSize: '14px',
-              textAlign: 'center',
-              border: '1px solid #fecaca'
+              border: '1px solid #fee2e2',
+              textAlign: 'center'
             }}>
               <strong>Ops!</strong> {submitError || contextError}
             </div>
@@ -135,35 +147,21 @@ const SalonSetup = ({ onComplete }) => {
               backgroundColor: COLORS.sageGreen,
               color: COLORS.white,
               border: 'none',
-              borderRadius: '10px',
+              borderRadius: '8px',
               fontSize: '16px',
-              fontWeight: '700',
+              fontWeight: '600',
               cursor: loading ? 'not-allowed' : 'pointer',
+              opacity: loading ? 0.7 : 1,
               transition: 'all 0.2s ease',
               boxShadow: '0 4px 12px rgba(163, 177, 138, 0.3)'
             }}
           >
-            {loading ? 'Configurando...' : 'Finalizar Configuração'}
+            {loading ? 'Processando...' : 'Finalizar Configuração'}
           </button>
         </form>
       </div>
     </div>
   );
-};
-
-// Estilos auxiliares para manter o código limpo
-const inputGroupStyle = { marginBottom: '20px' };
-const labelStyle = { display: 'block', marginBottom: '8px', color: COLORS.deepCharcoal, fontWeight: '600', fontSize: '14px' };
-const inputStyle = {
-  width: '100%',
-  padding: '12px 16px',
-  border: `1px solid ${COLORS.warmSand}`,
-  borderRadius: '8px',
-  fontSize: '16px',
-  color: COLORS.deepCharcoal,
-  boxSizing: 'border-box',
-  outline: 'none',
-  transition: 'border-color 0.2s'
 };
 
 export default SalonSetup;

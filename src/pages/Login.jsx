@@ -7,38 +7,48 @@ const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [mode, setMode] = useState('login'); // 'login' ou 'signup'
+  const [role, setRole] = useState('client'); // 'client' ou 'admin'
   const navigate = useNavigate();
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
-        navigate('/');
+        const userRole = session.user?.user_metadata?.role;
+        if (userRole === 'admin') {
+          navigate('/');
+        } else {
+          navigate('/agendamento-cliente');
+        }
       }
     });
   }, [navigate]);
 
   const handleSubmit = async (e) => {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
     e.preventDefault();
     setError('');
     setLoading(true);
 
     try {
-      if (mode === 'signup') {
-        // Cadastro
+if (mode === 'signup') {
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
           options: {
-            emailRedirectTo: `${window.location.origin}/setup`
+            data: { role: role },
+            // ALTERAÇÃO: Redireciona para a raiz. 
+            // O useEffect do Login decidirá para onde ir com base na role.
+            emailRedirectTo: `${window.location.origin}/` 
           }
         });
 
         if (error) throw error;
         
-        alert('Cadastro realizado! Verifique seu email para confirmar.');
-        // Volta para o login após cadastro
+        alert('Conta criada com sucesso! Você já pode acessar o sistema.');
         setMode('login');
         setEmail('');
         setPassword('');
@@ -52,11 +62,18 @@ const Login = () => {
 
         if (error) throw error;
         
-        console.log('Login bem-sucedido:', data.user.id);
+        // Redirecionamento baseado na role após login
+        const userRole = data.user?.user_metadata?.role;
+        if (userRole === 'admin') {
+          navigate('/');
+        } else {
+          navigate('/agendamento-cliente');
+        }
       }
     } catch (err) {
       setError(err.message);
     } finally {
+      setIsSubmitting(false);
       setLoading(false);
     }
   };
@@ -144,6 +161,59 @@ const Login = () => {
 
         {/* Formulário */}
         <form onSubmit={handleSubmit}>
+          {/* Seletor de Tipo de Usuário - Apenas no Cadastro */}
+          {mode === 'signup' && (
+            <div style={{ marginBottom: '24px' }}>
+              <label style={{
+                display: 'block',
+                marginBottom: '12px',
+                color: COLORS.deepCharcoal,
+                fontWeight: '600',
+                fontSize: '14px'
+              }}>
+                Tipo de conta
+              </label>
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button
+                  type="button"
+                  onClick={() => setRole('client')}
+                  style={{
+                    flex: 1,
+                    padding: '10px',
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                    fontSize: '13px',
+                    border: `2px solid ${role === 'client' ? COLORS.sageGreen : COLORS.warmSand}`,
+                    backgroundColor: role === 'client' ? '#F4F7F0' : COLORS.white,
+                    color: COLORS.deepCharcoal,
+                    fontWeight: role === 'client' ? '700' : '400',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  Sou Cliente
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRole('admin')}
+                  style={{
+                    flex: 1,
+                    padding: '10px',
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                    fontSize: '13px',
+                    border: `2px solid ${role === 'admin' ? COLORS.sageGreen : COLORS.warmSand}`,
+                    backgroundColor: role === 'admin' ? '#F4F7F0' : COLORS.white,
+                    color: COLORS.deepCharcoal,
+                    fontWeight: role === 'admin' ? '700' : '400',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  Sou um Salão
+                </button>
+              </div>
+            </div>
+          )}
+
           <div style={{ marginBottom: '24px' }}>
             <label style={{
               display: 'block',
@@ -209,7 +279,8 @@ const Login = () => {
               padding: '12px 16px',
               borderRadius: '8px',
               marginBottom: '24px',
-              fontSize: '14px'
+              fontSize: '14px',
+              border: '1px solid #fee2e2'
             }}>
               {error}
             </div>
@@ -218,7 +289,7 @@ const Login = () => {
           {/* Botão Principal */}
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || isSubmitting}
             style={{
               width: '100%',
               padding: '16px',
@@ -234,22 +305,26 @@ const Login = () => {
               marginBottom: '20px'
             }}
           >
-            {loading ? 'Processando...' : (mode === 'signup' ? 'Criar Conta' : 'Entrar na Conta')}
+            {loading ? 'Processando...' : (mode === 'signup' ? 'Criar Minha Conta' : 'Entrar na Conta')}
           </button>
 
-          {/* Mensagem de ajuda */}
+          {/* Mensagem de ajuda informativa */}
           {mode === 'signup' && (
             <div style={{
-              backgroundColor: '#f0f9ff',
-              border: '1px solid #bae6fd',
-              color: '#0369a1',
+              backgroundColor: '#F8F9FA',
+              border: `1px solid ${COLORS.warmSand}`,
+              color: COLORS.deepCharcoal,
               padding: '12px 16px',
               borderRadius: '8px',
-              fontSize: '14px',
-              marginTop: '20px'
+              fontSize: '13px',
+              marginTop: '20px',
+              lineHeight: '1.4'
             }}>
               <p style={{ margin: 0 }}>
-                <strong>Importante:</strong> Após o cadastro, verifique seu email para confirmar a conta.
+                <strong>{role === 'admin' ? 'Perfil Salão:' : 'Perfil Cliente:'}</strong> 
+                {role === 'admin' 
+                  ? ' Você terá acesso a ferramentas de gestão, agenda e profissionais.' 
+                  : ' Você poderá buscar salões próximos e agendar seus horários online.'}
               </p>
             </div>
           )}

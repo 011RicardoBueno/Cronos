@@ -14,45 +14,48 @@ export const SalonProvider = ({ children }) => {
 
   const { user } = useAuth();
 
-  const loadSalonData = async () => {
+const loadSalonData = async () => {
     try {
       setLoading(true);
       setError(null);
       
       if (!user) {
-        console.log('Nenhum usuário disponível');
         setLoading(false);
         return;
       }
 
-      console.log('Buscando dados para usuário:', user.id);
+      // GARANTIA: Se for cliente, limpa estados de salão e interrompe o setup
+      const userRole = user.user_metadata?.role;
+      if (userRole === 'client') {
+        setSalon(null);
+        setNeedsSetup(false); // Impede a abertura do modal/página de setup
+        setLoading(false);
+        return;
+      }
 
-      // OPÇÃO A: Se você CRIOU a tabela public.users
-      const { data: userData, error: userError } = await supabase
-        .from('public.users')  // Especifique o schema
-        .select('salon_id')
-        .eq('id', user.id)
-        .single();
+      // Se chegou aqui, é admin...
+      console.log('Buscando dados para o dono do salão:', user.id);
 
-      // OPÇÃO B: Se NÃO criou a tabela, use uma lógica alternativa
-      // Primeiro, tenta buscar salões vinculados ao email do usuário
+      // ALTERAÇÃO: Buscamos pela coluna 'owner_id' (ID do usuário)
+      // Certifique-se de que essa coluna existe na sua tabela 'salons' no Supabase
       const { data: salonsData, error: salonsError } = await supabase
         .from('salons')
         .select('*')
-        .eq('email', user.email)  // Busca por email
-        .single();
+        .eq('owner_id', user.id) // Busca vinculada ao ID do usuário
+        .maybeSingle();
 
-      if (salonsError || !salonsData) {
-        console.log('Usuário não tem salão cadastrado');
+      if (salonsError) throw salonsError;
+
+      if (!salonsData) {
+        console.log('Usuário admin não tem salão cadastrado');
         setNeedsSetup(true);
         setLoading(false);
         return;
       }
 
-      // Se encontrou salão pelo email
+      // Se encontrou salão, busca dados relacionados
       const salonId = salonsData.id;
       
-      // Busca dados relacionados
       const [professionalsRes, servicesRes] = await Promise.all([
         supabase.from('professionals').select('*').eq('salon_id', salonId),
         supabase.from('services').select('*').eq('salon_id', salonId)
@@ -62,34 +65,38 @@ export const SalonProvider = ({ children }) => {
       setProfessionals(professionalsRes.data || []);
       setServices(servicesRes.data || []);
       setNeedsSetup(false);
-      console.log('Dados carregados com sucesso');
 
     } catch (err) {
       console.error('Erro ao carregar dados do contexto:', err);
       setError(err.message);
-      setNeedsSetup(true); // Se erro, assume que precisa de setup
+      // Se der erro de coluna inexistente, avisamos o dev
+      if (err.code === '42703') {
+        console.error("DICA: Adicione a coluna 'owner_id' (tipo UUID) na sua tabela 'salons' no Supabase.");
+      }
     } finally {
       setLoading(false);
     }
   };
 
-  // Função para criar salão (para o SalonSetup)
   const createOrUpdateSalon = async (salonData) => {
     try {
       setLoading(true);
       setError(null);
       
-      if (!user) {
-        throw new Error('Usuário não autenticado');
-      }
+      if (!user) throw new Error('Usuário não autenticado');
 
-      console.log('Criando/atualizando salão para:', user.email);
+      // Limpeza explícita dos dados para evitar enviar colunas que não existem (como o email)
+      const cleanData = {
+        name: salonData.name,
+        phone: salonData.phone,
+        address: salonData.address,
+      };
 
       // Se já tem salão, atualiza
       if (salon?.id) {
         const { data, error } = await supabase
           .from('salons')
-          .update(salonData)
+          .update(cleanData) // Enviando apenas os campos limpos
           .eq('id', salon.id)
           .select()
           .single();
@@ -98,54 +105,30 @@ export const SalonProvider = ({ children }) => {
         setSalon(data);
         return data;
       } 
-      // Se não tem, cria novo
+      // Se não tem, cria novo vinculando ao owner_id
       else {
-        // Adiciona email do usuário ao salão
-        const salonWithEmail = {
-          ...salonData,
-          email: user.email
+        const newSalonEntry = {
+          ...cleanData, // Usa os campos limpos (sem email)
+          owner_id: user.id,
         };
+
+        console.log('Tentando inserir:', newSalonEntry);
 
         const { data: newSalon, error: salonError } = await supabase
           .from('salons')
-          .insert([salonWithEmail])
+          .insert([newSalonEntry])
           .select()
           .single();
 
-        if (salonError) throw salonError;
-
-        console.log('Salão criado:', newSalon.name);
-
-        // Se quiser criar registro na tabela users (opcional)
-        try {
-          // Verifica se tabela users existe
-          const { error: checkError } = await supabase
-            .from('users')
-            .select('id')
-            .limit(1);
-
-          if (!checkError) {
-            // Tabela existe, cria/atualiza registro
-            const { error: userError } = await supabase
-              .from('users')
-              .upsert({
-                id: user.id,
-                salon_id: newSalon.id
-              });
-
-            if (userError) console.warn('Não foi possível atualizar tabela users:', userError);
-          }
-        } catch (userErr) {
-          console.warn('Tabela users não existe ou erro:', userErr.message);
-          // Continua normalmente mesmo sem tabela users
+        if (salonError) {
+          console.error('Erro detalhado do Supabase:', salonError);
+          throw salonError;
         }
 
-        setSalon(newSalon);
-        setNeedsSetup(false);
+        await loadSalonData(); 
         return newSalon;
       }
     } catch (err) {
-      console.error('Erro ao salvar salão:', err);
       setError(err.message);
       throw err;
     } finally {
@@ -157,24 +140,16 @@ export const SalonProvider = ({ children }) => {
 
   useEffect(() => {
     if (user) {
-      console.log('Usuário disponível, carregando dados do salão...');
       loadSalonData();
     } else {
-      console.log('Aguardando autenticação...');
+      setSalon(null);
       setLoading(false);
     }
   }, [user]);
 
   const value = {
-    salon,
-    services,
-    setServices,
-    professionals,
-    loading,
-    error,
-    needsSetup,
-    createOrUpdateSalon, // EXPORTADA para SalonSetup
-    refreshSalon
+    salon, services, setServices, professionals,
+    loading, error, needsSetup, createOrUpdateSalon, refreshSalon
   };
 
   return (
@@ -186,8 +161,6 @@ export const SalonProvider = ({ children }) => {
 
 export const useSalon = () => {
   const context = useContext(SalonContext);
-  if (!context) {
-    throw new Error('useSalon deve ser usado dentro de SalonProvider');
-  }
+  if (!context) throw new Error('useSalon deve ser usado dentro de SalonProvider');
   return context;
 };
