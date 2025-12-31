@@ -20,31 +20,42 @@ export const fetchServicesAndProfessionals = async (salonId) => {
   return { servicesRes, professionalsRes };
 };
 
-// Agora aceita datas para evitar carregar dados desnecessários
+// Centraliza a criação de agendamentos para evitar erros de RLS e formatação
+export const createBookingSlot = async (bookingData) => {
+  const { data, error } = await supabase
+    .from('slots')
+    .insert([{
+      salon_id: bookingData.salonId,
+      professional_id: bookingData.professionalId,
+      service_id: bookingData.serviceId,
+      client_id: bookingData.clientId || null,
+      client_name: bookingData.clientName,
+      client_phone: bookingData.clientPhone,
+      start_time: bookingData.startTime,
+      end_time: bookingData.endTime,
+      status: 'confirmed'
+    }]);
+
+  if (error) throw error;
+  return data;
+};
+
 export const fetchProfessionalSlots = async (professionalId, startDate, endDate) => {
   try {
-    // 1. Iniciamos a query pedindo TUDO (*) + os dados da tabela services
     let query = supabase
       .from('slots')
       .select(`
         *,
-        services (
-          name,
-          price
-        )
+        services (name, price)
       `)
       .eq('professional_id', professionalId);
 
-    // 2. Aplicamos os filtros de data APENAS se eles existirem
     if (startDate && endDate) {
       query = query.gte('start_time', startDate).lte('start_time', endDate);
     }
 
-    // 3. Executamos a query que construímos (usando a variável 'query')
     const { data, error } = await query.order('start_time', { ascending: true });
-
     if (error) throw error;
-    
     return data;
   } catch (error) {
     console.error("Erro na busca de slots:", error);

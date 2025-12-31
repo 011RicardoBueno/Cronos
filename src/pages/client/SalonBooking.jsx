@@ -5,12 +5,14 @@ import { COLORS } from '../../constants/dashboard';
 import { CheckCircle, ArrowLeft } from 'lucide-react';
 import moment from 'moment';
 import ClientHeader from '../../components/ui/ClientHeader';
+import { createBookingSlot } from '../../services/supabaseService';
 
 export default function SalonBooking({ publicMode = false, salonIdFromSlug = null }) {
-  const { id: paramId } = useParams();
+  const { id: paramId, slug } = useParams();
   const navigate = useNavigate();
   
-  const identifier = salonIdFromSlug || paramId;
+  // O identificador pode ser o ID da URL, o slug da URL ou o ID passado pela página pública
+  const identifier = salonIdFromSlug || paramId || slug;
 
   const [salon, setSalon] = useState(null);
   const [services, setServices] = useState([]);
@@ -25,7 +27,6 @@ export default function SalonBooking({ publicMode = false, salonIdFromSlug = nul
   const [selectedTime, setSelectedTime] = useState(null);
   const [clientData, setClientData] = useState({ name: '', phone: '' });
 
-  // --- FUNÇÃO DE MÁSCARA ---
   const formatPhone = (value) => {
     if (!value) return "";
     const phone = value.replace(/\D/g, "");
@@ -37,7 +38,6 @@ export default function SalonBooking({ publicMode = false, salonIdFromSlug = nul
     return phone.substring(0, 11).replace(/^(\d{2})(\d{5})(\d{4})/, "($1) $2-$3");
   };
 
-  // --- AUTO-FILL DE DADOS DO USUÁRIO ---
   useEffect(() => {
     const loadUserProfile = async () => {
       if (publicMode) return;
@@ -57,11 +57,15 @@ export default function SalonBooking({ publicMode = false, salonIdFromSlug = nul
       if (!identifier) return;
       try {
         setLoading(true);
+        // Verifica se o identificador já é um UUID válido
         const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(identifier);
         
         const query = supabase.from('salons').select('*');
-        if (isUUID) query.eq('id', identifier);
-        else query.eq('slug', identifier);
+        if (isUUID) {
+          query.eq('id', identifier);
+        } else {
+          query.eq('slug', identifier);
+        }
 
         const { data: salonData, error: sError } = await query.single();
         if (sError || !salonData) throw new Error("Salão não encontrado");
@@ -69,14 +73,14 @@ export default function SalonBooking({ publicMode = false, salonIdFromSlug = nul
         setSalon(salonData);
 
         const [serRes, pRes] = await Promise.all([
-          supabase.from('services').select('*').eq('salon_id', salonData.id),
-          supabase.from('professionals').select('*').eq('salon_id', salonData.id)
+          supabase.from('services').select('*').eq('salon_id', salonData.id).order('name'),
+          supabase.from('professionals').select('*').eq('salon_id', salonData.id).order('name')
         ]);
 
         setServices(serRes.data || []);
         setProfessionals(pRes.data || []);
       } catch (err) {
-        console.error(err);
+        console.error("Erro ao carregar salão:", err);
       } finally {
         setLoading(false);
       }
@@ -125,7 +129,6 @@ export default function SalonBooking({ publicMode = false, salonIdFromSlug = nul
     try {
       const startTime = moment(`${selectedDate} ${selectedTime}`).toISOString();
       
-      // --- BLOQUEIO DE CONCORRÊNCIA (DOUBLE BOOKING) ---
       const { data: conflict } = await supabase
         .from('slots')
         .select('id')
@@ -134,7 +137,7 @@ export default function SalonBooking({ publicMode = false, salonIdFromSlug = nul
         .maybeSingle();
 
       if (conflict) {
-        alert("Este horário acabou de ser preenchido por outra pessoa. Por favor, escolha outro.");
+        alert("Este horário acabou de ser preenchido. Por favor, escolha outro.");
         setStep(2);
         fetchSlots();
         return;
@@ -149,21 +152,23 @@ export default function SalonBooking({ publicMode = false, salonIdFromSlug = nul
       const duration = selectedService.duration_minutes || 30;
       const endTime = moment(startTime).add(duration, 'minutes').toISOString();
 
-      const { error } = await supabase.from('slots').insert([{
-        salon_id: salon.id,
-        professional_id: selectedProfessional.id,
-        service_id: selectedService.id,
-        client_id: finalClientId,
-        client_name: clientData.name.trim(),
-        client_phone: clientData.phone.trim(),
-        start_time: startTime,
-        end_time: endTime,
-        status: 'confirmed'
-      }]);
+      // Usando o serviço centralizado que trata salon_id corretamente
+      await createBookingSlot({
+        salonId: salon.id,
+        professionalId: selectedProfessional.id,
+        serviceId: selectedService.id,
+        clientId: finalClientId,
+        clientName: clientData.name.trim(),
+        clientPhone: clientData.phone.trim(),
+        startTime: startTime,
+        endTime: endTime
+      });
 
-      if (error) throw error;
       setStep(4);
-    } catch (err) { alert(err.message); }
+    } catch (err) { 
+      console.error("Erro ao agendar:", err);
+      alert("Erro ao realizar agendamento. Verifique sua conexão."); 
+    }
   };
 
   if (loading) return (
@@ -272,8 +277,12 @@ export default function SalonBooking({ publicMode = false, salonIdFromSlug = nul
           <div style={styles.center}>
             <CheckCircle size={60} color={COLORS.sageGreen} />
             <h2 style={{marginTop: '20px', color: COLORS.deepCharcoal}}>Agendado com sucesso!</h2>
-            <p style={{color: '#666', marginBottom: '30px'}}>O profissional já recebeu seu pedido.</p>
-            <button onClick={() => navigate('/meus-agendamentos')} style={styles.mainBtn}>Ver Meus Agendamentos</button>
+            <p style={{color: '#666', marginBottom: '30px'}}>Obrigado, {clientData.name.split(' ')[0]}! Seu horário foi reservado.</p>
+            {publicMode ? (
+               <button onClick={() => setStep(1)} style={styles.mainBtn}>Voltar para o Início</button>
+            ) : (
+               <button onClick={() => navigate('/meus-agendamentos')} style={styles.mainBtn}>Ver Meus Agendamentos</button>
+            )}
           </div>
         )}
       </div>
