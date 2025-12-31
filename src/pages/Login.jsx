@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase';
 import { COLORS } from '../constants/dashboard';
 
 const Login = () => {
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(''); // Usado como identificador no Login
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
@@ -15,6 +15,7 @@ const Login = () => {
   const [role, setRole] = useState('client'); // 'client' ou 'admin'
   const navigate = useNavigate();
 
+  // Função de Máscara de Telefone
   const formatPhone = (value) => {
     if (!value) return "";
     const cleanValue = value.replace(/\D/g, "");
@@ -24,6 +25,17 @@ const Login = () => {
         .replace(/(\d{5})(\d)/, "$1-$2");
     }
     return cleanValue.substring(0, 11).replace(/^(\d{2})(\d{5})(\d{4})/, "($1) $2-$3");
+  };
+
+  // Lógica para tratar o input de Login (Telefone ou E-mail)
+  const handleLoginIdentifierChange = (e) => {
+    const val = e.target.value;
+    // Se o valor começar com número, aplica máscara de telefone
+    if (/^\d/.test(val.replace(/\D/g, '')) && !val.includes('@')) {
+      setEmail(formatPhone(val));
+    } else {
+      setEmail(val);
+    }
   };
 
   useEffect(() => {
@@ -39,15 +51,23 @@ const Login = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (isSubmitting) return;
-    setIsSubmitting(true);
+    
     setError('');
+    
+    // Validações Básicas
+    if (password.length < 6) {
+      setError('A senha deve ter pelo menos 6 caracteres.');
+      return;
+    }
+
+    setIsSubmitting(true);
     setLoading(true);
 
     try {
       if (mode === 'signup') {
         if (!fullName.trim()) throw new Error('O nome é obrigatório.');
         const cleanPhone = phone.replace(/\D/g, '');
-        if (cleanPhone.length < 10) throw new Error('Insira um telefone válido.');
+        if (cleanPhone.length < 10) throw new Error('Insira um telefone válido com DDD.');
 
         const finalEmail = email.trim() || `${cleanPhone}@fluxo.com`;
 
@@ -69,9 +89,14 @@ const Login = () => {
         else navigate('/agendamento-cliente');
         
       } else {
+        // Lógica de Login: Trata Telefone Mascarado
         let loginIdentifier = email.trim();
-        if (/^\d+$/.test(loginIdentifier.replace(/\D/g, ''))) {
-            loginIdentifier = `${loginIdentifier.replace(/\D/g, '')}@fluxo.com`;
+        const cleanId = loginIdentifier.replace(/\D/g, '');
+        
+        // Se for apenas números, tratamos como telefone
+        if (/^\d+$/.test(cleanId) && !loginIdentifier.includes('@')) {
+            if (cleanId.length < 10) throw new Error('Telefone incompleto.');
+            loginIdentifier = `${cleanId}@fluxo.com`;
         }
 
         const { data, error: signInError } = await supabase.auth.signInWithPassword({
@@ -79,7 +104,13 @@ const Login = () => {
           password,
         });
 
-        if (signInError) throw signInError;
+        if (signInError) {
+          if (signInError.message === 'Invalid login credentials') {
+            throw new Error('Telefone/E-mail ou senha incorretos.');
+          }
+          throw signInError;
+        }
+        
         const userRole = data.user?.user_metadata?.role;
         if (userRole === 'admin') navigate('/');
         else navigate('/agendamento-cliente');
@@ -103,20 +134,22 @@ const Login = () => {
         <div style={styles.tabContainer}>
           <button
             type="button"
-            onClick={() => { setMode('login'); setError(''); }}
+            onClick={() => { setMode('login'); setError(''); setEmail(''); setPassword(''); }}
             style={{ ...styles.tabButton, 
               backgroundColor: mode === 'login' ? COLORS.white : 'transparent',
-              fontWeight: mode === 'login' ? '700' : '400'
+              fontWeight: mode === 'login' ? '700' : '400',
+              boxShadow: mode === 'login' ? '0 2px 4px rgba(0,0,0,0.05)' : 'none'
             }}
           >
             Entrar
           </button>
           <button
             type="button"
-            onClick={() => { setMode('signup'); setError(''); }}
+            onClick={() => { setMode('signup'); setError(''); setEmail(''); setPassword(''); }}
             style={{ ...styles.tabButton, 
               backgroundColor: mode === 'signup' ? COLORS.white : 'transparent',
-              fontWeight: mode === 'signup' ? '700' : '400'
+              fontWeight: mode === 'signup' ? '700' : '400',
+              boxShadow: mode === 'signup' ? '0 2px 4px rgba(0,0,0,0.05)' : 'none'
             }}
           >
             Cadastrar
@@ -155,8 +188,8 @@ const Login = () => {
               <div style={styles.roleInfoBox}>
                  <p style={styles.infoText}>
                    {role === 'client' 
-                     ? "Você poderá buscar salões próximos e agendar seus horários online."
-                     : "Você terá acesso a ferramentas de gestão, agenda e profissionais."
+                     ? "Busque salões próximos e agende seus horários online."
+                     : "Tenha acesso a ferramentas de gestão, agenda e profissionais."
                    }
                  </p>
               </div>
@@ -184,7 +217,7 @@ const Login = () => {
             <input
               type="text"
               value={mode === 'signup' ? phone : email}
-              onChange={(e) => mode === 'signup' ? setPhone(formatPhone(e.target.value)) : setEmail(e.target.value)}
+              onChange={(e) => mode === 'signup' ? setPhone(formatPhone(e.target.value)) : handleLoginIdentifierChange(e)}
               placeholder={mode === 'signup' ? '(00) 00000-0000' : 'Seu telefone ou e-mail'}
               style={styles.input}
               required

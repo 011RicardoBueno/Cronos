@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { COLORS } from '../../constants/dashboard';
-import { Calendar, Clock, AlertCircle } from 'lucide-react';
+import { Calendar, Clock, AlertCircle, Loader2 } from 'lucide-react';
 import moment from 'moment';
 import 'moment/locale/pt-br';
 import ClientHeader from '../../components/ui/ClientHeader';
@@ -19,9 +19,14 @@ export default function MyAppointments() {
   const fetchAppointments = async () => {
     try {
       setLoading(true);
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      
+      if (userError || !user) {
+        setLoading(false);
+        return;
+      }
 
+      // A busca agora depende da FK que criamos no SQL acima
       const { data, error } = await supabase
         .from('slots')
         .select(`
@@ -30,12 +35,12 @@ export default function MyAppointments() {
           services (name, price)
         `)
         .eq('client_id', user.id)
-        .order('start_time', { ascending: true });
+        .order('start_time', { ascending: false }); // Mostra os mais recentes primeiro
 
       if (error) throw error;
       setAppointments(data || []);
     } catch (err) {
-      console.error("Erro ao buscar agendamentos:", err);
+      console.error("Erro ao buscar agendamentos:", err.message);
     } finally {
       setLoading(false);
     }
@@ -47,7 +52,10 @@ export default function MyAppointments() {
   if (loading) return (
     <div style={{ backgroundColor: COLORS.offWhite, minHeight: '100vh' }}>
       <ClientHeader />
-      <div style={styles.center}>Carregando seus agendamentos...</div>
+      <div style={styles.center}>
+        <Loader2 size={32} className="animate-spin" style={{ margin: '0 auto 10px', color: COLORS.sageGreen }} />
+        <p>Carregando seus agendamentos...</p>
+      </div>
     </div>
   );
 
@@ -59,13 +67,14 @@ export default function MyAppointments() {
 
         {appointments.length === 0 ? (
           <div style={styles.emptyState}>
-            <AlertCircle size={48} color="#ccc" />
-            <p>Você ainda não possui agendamentos.</p>
+            <AlertCircle size={48} color="#D1D5DB" style={{ marginBottom: '16px' }} />
+            <p style={{ fontWeight: '500' }}>Você ainda não possui agendamentos.</p>
+            <p style={{ fontSize: '14px', color: '#888', marginTop: '4px' }}>Encontre um salão e agende agora mesmo!</p>
           </div>
         ) : (
           <>
             {upcoming.length > 0 && (
-              <section>
+              <section style={{ marginBottom: '32px' }}>
                 <h3 style={styles.sectionTitle}>Próximos</h3>
                 {upcoming.map(app => (
                   <AppointmentCard key={app.id} app={app} isUpcoming />
@@ -74,10 +83,10 @@ export default function MyAppointments() {
             )}
 
             {history.length > 0 && (
-              <section style={{ marginTop: '30px' }}>
+              <section>
                 <h3 style={styles.sectionTitle}>Histórico</h3>
                 {history.map(app => (
-                  <AppointmentCard key={app.id} app={app} />
+                  <AppointmentCard key={app.id} app={app} isUpcoming={false} />
                 ))}
               </section>
             )}
@@ -89,14 +98,19 @@ export default function MyAppointments() {
 }
 
 function AppointmentCard({ app, isUpcoming }) {
+  const price = app.services?.price || 0;
+
   return (
-    <div style={{...styles.card, opacity: isUpcoming ? 1 : 0.7}}>
+    <div style={{...styles.card, borderLeft: isUpcoming ? `4px solid ${COLORS.sageGreen}` : '4px solid #D1D5DB'}}>
       <div style={styles.cardHeader}>
-        <span style={styles.salonName}>{app.salons?.name}</span>
+        <div>
+          <span style={styles.salonName}>{app.salons?.name || 'Salão não identificado'}</span>
+          <p style={styles.salonAddress}>{app.salons?.address}</p>
+        </div>
         <span style={{
           ...styles.statusBadge, 
-          backgroundColor: isUpcoming ? '#e8f5e9' : '#f5f5f5',
-          color: isUpcoming ? '#2e7d32' : '#666'
+          backgroundColor: isUpcoming ? '#E8F5E9' : '#F3F4F6',
+          color: isUpcoming ? '#1B5E20' : '#4B5563'
         }}>
           {isUpcoming ? 'Confirmado' : 'Realizado'}
         </span>
@@ -104,36 +118,37 @@ function AppointmentCard({ app, isUpcoming }) {
       
       <div style={styles.serviceRow}>
         <div style={styles.infoItem}>
-          <Calendar size={16} />
+          <Calendar size={14} color="#6B7280" />
           <span>{moment(app.start_time).format('DD [de] MMMM')}</span>
         </div>
         <div style={styles.infoItem}>
-          <Clock size={16} />
+          <Clock size={14} color="#6B7280" />
           <span>{moment(app.start_time).format('HH:mm')}</span>
         </div>
       </div>
 
       <div style={styles.footer}>
-        <div style={styles.serviceName}>{app.services?.name}</div>
-        <div style={styles.price}>R$ {Number(app.services?.price || 0).toFixed(2)}</div>
+        <div style={styles.serviceName}>{app.services?.name || 'Serviço'}</div>
+        <div style={styles.price}>R$ {Number(price).toFixed(2)}</div>
       </div>
     </div>
   );
 }
 
 const styles = {
-  container: { maxWidth: '500px', margin: '0 auto', padding: '0 20px 40px' },
-  title: { fontSize: '1.5rem', fontWeight: 'bold', color: COLORS.deepCharcoal, marginBottom: '25px' },
-  sectionTitle: { fontSize: '0.8rem', color: '#888', marginBottom: '15px', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 'bold' },
-  center: { textAlign: 'center', padding: '50px', color: '#666' },
-  emptyState: { textAlign: 'center', padding: '50px', color: '#999', backgroundColor: 'white', borderRadius: '20px', border: '1px dashed #ccc' },
-  card: { backgroundColor: 'white', borderRadius: '16px', padding: '16px', marginBottom: '12px', boxShadow: '0 2px 10px rgba(0,0,0,0.03)', border: '1px solid #eee' },
-  cardHeader: { display: 'flex', justifyContent: 'space-between', marginBottom: '12px' },
-  salonName: { fontWeight: 'bold', color: COLORS.deepCharcoal },
-  statusBadge: { fontSize: '0.7rem', padding: '4px 8px', borderRadius: '20px', fontWeight: 'bold' },
-  serviceRow: { display: 'flex', gap: '15px', marginBottom: '12px', color: '#666', fontSize: '0.9rem' },
-  infoItem: { display: 'flex', alignItems: 'center', gap: '5px' },
-  footer: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #f5f5f5', paddingTop: '12px' },
-  serviceName: { color: COLORS.deepCharcoal, fontWeight: '500' },
-  price: { fontWeight: 'bold', color: COLORS.sageGreen }
+  container: { maxWidth: '500px', margin: '0 auto', padding: '24px 20px 60px' },
+  title: { fontSize: '1.75rem', fontWeight: '800', color: COLORS.deepCharcoal, marginBottom: '24px' },
+  sectionTitle: { fontSize: '0.75rem', color: '#9CA3AF', marginBottom: '16px', textTransform: 'uppercase', letterSpacing: '1.2px', fontWeight: '700' },
+  center: { display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', color: '#666' },
+  emptyState: { textAlign: 'center', padding: '60px 20px', backgroundColor: 'white', borderRadius: '24px', border: '1px solid #E5E7EB' },
+  card: { backgroundColor: 'white', borderRadius: '16px', padding: '20px', marginBottom: '16px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)', transition: 'all 0.2s' },
+  cardHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' },
+  salonName: { fontSize: '16px', fontWeight: '700', color: COLORS.deepCharcoal, display: 'block' },
+  salonAddress: { fontSize: '12px', color: '#6B7280', marginTop: '2px' },
+  statusBadge: { fontSize: '11px', padding: '4px 10px', borderRadius: '99px', fontWeight: '700' },
+  serviceRow: { display: 'flex', gap: '20px', marginBottom: '16px', color: '#4B5563', fontSize: '14px' },
+  infoItem: { display: 'flex', alignItems: 'center', gap: '6px' },
+  footer: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #F3F4F6', paddingTop: '16px' },
+  serviceName: { color: COLORS.deepCharcoal, fontWeight: '600', fontSize: '15px' },
+  price: { fontWeight: '700', color: COLORS.sageGreen, fontSize: '16px' }
 };
