@@ -13,22 +13,12 @@ import Profissionais from '../pages/profissionais/Profissionais';
 import Configuracoes from '../pages/configuracoes/Configuracoes';
 import Explorer from '../pages/client/Explorer'; 
 import SalonBooking from '../pages/client/SalonBooking';
-import MyAppointments from '../pages/client/MyAppointments'; // Nova Importação
+import MyAppointments from '../pages/client/MyAppointments';
 import PublicBookingPage from '../pages/public/PublicBookingPage';
 
 export const AppRoutes = () => {
   const { session, loading: authLoading, user } = useAuth();
   const { loading: salonLoading, needsSetup } = useSalon();
-
-  // 1. ROTAS TOTALMENTE PÚBLICAS (Link da Bio / Público)
-  // Nota: Mantemos o check de pathname para garantir prioridade total
-  if (window.location.pathname.startsWith('/p/')) {
-    return (
-      <Routes>
-        <Route path="/p/:slug" element={<PublicBookingPage />} />
-      </Routes>
-    );
-  }
 
   if (authLoading || salonLoading) {
     return (
@@ -38,49 +28,43 @@ export const AppRoutes = () => {
     );
   }
 
-  // 2. SE NÃO ESTÁ LOGADO
-  if (!session) {
-    return (
-      <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route path="*" element={<Navigate to="/login" replace />} />
-      </Routes>
-    );
-  }
-
-  const userRole = user?.user_metadata?.role;
-
-  // --- FLUXO DO CLIENTE LOGADO (App do Usuário) ---
-  if (userRole === 'client') {
-    return (
-      <Routes>
-        <Route path="/agendamento-cliente" element={<Explorer />} />
-        <Route path="/agendar/:id" element={<SalonBooking />} />
-        <Route path="/meus-agendamentos" element={<MyAppointments />} /> {/* Nova Rota */}
-        <Route path="*" element={<Navigate to="/agendamento-cliente" replace />} />
-      </Routes>
-    );
-  }
-
-  // --- FLUXO DO ADMIN (DONO DE SALÃO) ---
-  if (needsSetup) {
-    return (
-      <Routes>
-        <Route path="/setup" element={<SalonSetup />} />
-        <Route path="*" element={<Navigate to="/setup" replace />} />
-      </Routes>
-    );
-  }
-
   return (
     <Routes>
-      <Route path="/" element={<Dashboard />} />
-      <Route path="/agenda" element={<Agenda />} />
-      <Route path="/servicos" element={<Servicos />} />
-      <Route path="/profissionais" element={<Profissionais />} />
-      <Route path="/configuracoes" element={<Configuracoes />} />
-      {/* Opcional: Permitir que o admin também veja seus próprios agendamentos se ele tiver o papel de cliente também */}
-      <Route path="/meus-agendamentos" element={<MyAppointments />} />
+      {/* 1. ROTAS PÚBLICAS (Sempre acessíveis) */}
+      <Route path="/p/:slug" element={<PublicBookingPage />} />
+      <Route path="/login" element={<Login />} />
+
+      {/* 2. PROTEÇÃO DE ROTAS LOGADAS */}
+      {!session ? (
+        // Se não está logado e tenta acessar qualquer coisa que não seja público, vai pro Login
+        <Route path="*" element={<Navigate to="/login" replace />} />
+      ) : (
+        // USUÁRIO LOGADO
+        <>
+          {needsSetup ? (
+            <Route path="*" element={<Navigate to="/setup" replace />} />
+          ) : (
+            <>
+              {/* Rotas Comuns ou de Admin */}
+              <Route path="/" element={user?.user_metadata?.role === 'client' ? <Navigate to="/agendamento-cliente" /> : <Dashboard />} />
+              <Route path="/agenda" element={<Agenda />} />
+              <Route path="/servicos" element={<Servicos />} />
+              <Route path="/profissionais" element={<Profissionais />} />
+              <Route path="/configuracoes" element={<Configuracoes />} />
+              <Route path="/meus-agendamentos" element={<MyAppointments />} />
+
+              {/* Rotas exclusivas de Cliente */}
+              <Route path="/agendamento-cliente" element={<Explorer />} />
+              <Route path="/agendar/:id" element={<SalonBooking />} />
+            </>
+          )}
+          
+          {/* Rota de Setup */}
+          <Route path="/setup" element={<SalonSetup />} />
+        </>
+      )}
+
+      {/* Fallback Geral */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
