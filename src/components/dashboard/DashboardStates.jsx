@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { CalendarCheck, Users, DollarSign, TrendingUp, RefreshCw, CreditCard } from 'lucide-react';
+import { CalendarCheck, TrendingUp, DollarSign, UserCheck, RefreshCw } from 'lucide-react';
 import { COLORS } from '../../constants/dashboard';
 import { supabase } from '../../lib/supabase';
 import { useSalon } from '../../context/SalonContext';
@@ -21,7 +21,7 @@ const StatCard = ({ label, value, icon: Icon, trend, color, loading }) => (
     </div>
     <div style={{ flex: 1 }}>
       <p style={{ margin: 0, color: '#666', fontSize: '0.85rem', fontWeight: '500' }}>{label}</p>
-      <h3 style={{ margin: '4px 0', fontSize: '1.4rem', color: COLORS.deepCharcoal }}>
+      <h3 style={{ margin: '4px 0', fontSize: '1.4rem', color: COLORS.deepCharcoal, fontWeight: '700' }}>
         {loading ? '...' : value}
       </h3>
       {trend && (
@@ -37,15 +37,14 @@ export default function DashboardStates() {
   const [statsData, setStatsData] = useState({
     todayCount: 0,
     expectedRevenue: 0,
-    realizedRevenue: 0,
     uniqueClients: 0,
-    occupancyRate: 0,
+    recurrentClients: 0,
     ticketMedio: 0,
     loading: true
   });
 
   const fetchDashboardData = useCallback(async (showIndicator = false) => {
-    if (!professionals || professionals.length === 0 || !salon) {
+    if (!professionals?.length || !salon) {
       if (!salonLoading) setStatsData(prev => ({ ...prev, loading: false }));
       return;
     }
@@ -53,51 +52,36 @@ export default function DashboardStates() {
     if (showIndicator) setIsRefreshing(true);
 
     try {
-      const startOfDay = moment().startOf('day').toISOString();
-      const endOfDay = moment().endOf('day').toISOString();
+      // Agora buscamos apenas o dia de HOJE para performance
+      const startOfToday = moment().startOf('day').toISOString();
+      const endOfToday = moment().endOf('day').toISOString();
 
       const { data, error } = await supabase
         .from('slots')
-        .select(`id, client_id, status, services (price)`)
+        .select(`id, client_id, status, start_time, services (price)`)
         .in('professional_id', professionals.map(p => p.id))
-        .gte('start_time', startOfDay)
-        .lte('start_time', endOfDay);
+        .neq('status', 'cancelled')
+        .gte('start_time', startOfToday)
+        .lte('start_time', endOfToday);
 
       if (error) throw error;
 
-      // 1. Cálculos de Receita (Prevista vs Realizada)
-      const expected = data?.reduce((acc, slot) => acc + (slot.services?.price || 0), 0) || 0;
-      const realized = data?.filter(s => s.status === 'completed')
-                           .reduce((acc, slot) => acc + (slot.services?.price || 0), 0) || 0;
-      
-      // 2. Ticket Médio
-      const tMedio = data?.length > 0 ? expected / data.length : 0;
-
-      // 3. Clientes Únicos
-      const clientsSet = new Set(data?.map(s => s.client_id).filter(id => id));
-      
-      // 4. Ocupação Inteligente (Baseada no horário de funcionamento do Salon)
-      const openHour = parseInt(salon?.opening_time?.split(':')[0] || 8);
-      const closeHour = parseInt(salon?.closing_time?.split(':')[0] || 18);
-      const hoursPerDay = closeHour - openHour;
-      
-      // Consideramos 1 slot = 30min de capacidade. 1 hora = 2 slots.
-      const totalSlotsCapacity = professionals.length * hoursPerDay * 2;
-      const occupancy = data?.length > 0 
-        ? Math.min(Math.round((data.length / totalSlotsCapacity) * 100), 100) 
-        : 0;
+      // Cálculo das métricas
+      const expected = data.reduce((acc, slot) => acc + (slot.services?.price || 0), 0);
+      const tMedio = data.length > 0 ? expected / data.length : 0;
+      const clientsIds = data.map(s => s.client_id).filter(id => id);
+      const unique = new Set(clientsIds).size;
 
       setStatsData({
-        todayCount: data?.length || 0,
+        todayCount: data.length,
         expectedRevenue: expected,
-        realizedRevenue: realized,
-        uniqueClients: clientsSet.size,
-        occupancyRate: occupancy,
+        uniqueClients: unique,
+        recurrentClients: clientsIds.length - unique,
         ticketMedio: tMedio,
         loading: false
       });
     } catch (err) {
-      console.error("Erro ao carregar métricas:", err);
+      console.error("Erro ao carregar métricas do dashboard:", err);
     } finally {
       setIsRefreshing(false);
     }
@@ -107,65 +91,28 @@ export default function DashboardStates() {
     fetchDashboardData();
   }, [fetchDashboardData]);
 
-  const stats = [
-    {
-      label: "Agendamentos Hoje",
-      value: statsData.todayCount.toString(),
-      icon: CalendarCheck,
-      trend: `${statsData.occupancyRate}% de ocupação`,
-      color: COLORS.sageGreen,
-      loading: statsData.loading || salonLoading
-    },
-    {
-      label: "Ticket Médio",
-      value: `R$ ${statsData.ticketMedio.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
-      icon: TrendingUp,
-      trend: "Média por cliente",
-      color: COLORS.deepCharcoal,
-      loading: statsData.loading || salonLoading
-    },
-    {
-      label: "Receita Prevista",
-      value: `R$ ${statsData.expectedRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
-      icon: DollarSign,
-      trend: "Total bruto hoje",
-      color: "#2D6A4F",
-      loading: statsData.loading || salonLoading
-    },
-    {
-      label: "Já Recebido",
-      value: `R$ ${statsData.realizedRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
-      icon: CreditCard,
-      trend: "Status: Concluído",
-      color: "#3498db",
-      loading: statsData.loading || salonLoading
-    }
-  ];
-
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '25px' }}>
+      
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <h3 style={{ margin: 0, fontSize: '1.1rem', color: COLORS.deepCharcoal, fontWeight: '700' }}>
+          Resumo de Hoje
+        </h3>
         <button 
-          onClick={() => fetchDashboardData(true)}
-          disabled={isRefreshing || statsData.loading}
-          style={{
+          onClick={() => fetchDashboardData(true)} 
+          disabled={isRefreshing}
+          style={{ 
+            background: 'none', 
+            border: 'none', 
+            cursor: 'pointer', 
+            color: '#888',
             display: 'flex',
             alignItems: 'center',
-            gap: '8px',
-            background: 'none',
-            border: 'none',
-            color: '#666',
-            fontSize: '0.85rem',
-            cursor: 'pointer',
-            padding: '5px 10px',
-            borderRadius: '5px'
+            gap: '5px'
           }}
         >
-          <RefreshCw 
-            size={16} 
-            style={{ animation: isRefreshing ? 'spin 1s linear infinite' : 'none' }} 
-          />
-          {isRefreshing ? 'Sincronizando...' : 'Sincronizar dados'}
+          <span style={{ fontSize: '12px' }}>{isRefreshing ? 'Atualizando...' : 'Atualizar'}</span>
+          <RefreshCw size={16} style={{ animation: isRefreshing ? 'spin 1s linear infinite' : 'none' }} />
         </button>
       </div>
 
@@ -174,9 +121,35 @@ export default function DashboardStates() {
         gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', 
         gap: '20px' 
       }}>
-        {stats.map((stat, index) => (
-          <StatCard key={index} {...stat} />
-        ))}
+        <StatCard 
+          label="Agendamentos" 
+          value={statsData.todayCount} 
+          icon={CalendarCheck} 
+          color={COLORS.sageGreen} 
+          loading={statsData.loading || salonLoading} 
+        />
+        <StatCard 
+          label="Ticket Médio" 
+          value={`R$ ${statsData.ticketMedio.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} 
+          icon={TrendingUp} 
+          color={COLORS.deepCharcoal} 
+          loading={statsData.loading || salonLoading} 
+        />
+        <StatCard 
+          label="Receita Prevista" 
+          value={`R$ ${statsData.expectedRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} 
+          icon={DollarSign} 
+          color="#2D6A4F" 
+          loading={statsData.loading || salonLoading} 
+        />
+        <StatCard 
+          label="Clientes Únicos" 
+          value={statsData.uniqueClients} 
+          trend={`${statsData.recurrentClients} recorrentes hoje`} 
+          icon={UserCheck} 
+          color="#3498db" 
+          loading={statsData.loading || salonLoading} 
+        />
       </div>
 
       <style>{`

@@ -17,6 +17,7 @@ import MyAppointments from '../pages/client/MyAppointments';
 import PublicBookingPage from '../pages/public/PublicBookingPage'; // <-- Verifique se este arquivo existe neste caminho
 import Clients from '../pages/admin/Clients';
 import Financeiro from '../pages/financeiro/Financeiro';
+import QueueDisplay from '../pages/admin/QueueDisplay';
 
 export const AppRoutes = () => {
   const { session, loading: authLoading, user } = useAuth();
@@ -67,6 +68,7 @@ export const AppRoutes = () => {
               <Route path="/configuracoes" element={<Configuracoes />} />
               <Route path="/admin/clientes" element={<Clients />} />
               <Route path="/financeiro" element={<Financeiro />} />
+              <Route path="/admin/painel-fila" element={<QueueDisplay />} />
 
               {/* Rotas do Cliente */}
               <Route path="/agendamento-cliente" element={<Explorer />} />

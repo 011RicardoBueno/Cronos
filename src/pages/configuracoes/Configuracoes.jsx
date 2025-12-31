@@ -3,7 +3,8 @@ import { useSalon } from '../../context/SalonContext';
 import { supabase } from '../../lib/supabase';
 import { COLORS } from '../../constants/dashboard';
 import { useNavigate } from 'react-router-dom';
-import { Save, Building2, MapPin, Clock, Globe, ArrowLeft, CheckCircle2, Lock } from 'lucide-react';
+import LogoUpload from '../../components/LogoUpload'; // Importe o componente criado anteriormente
+import { Save, Building2, MapPin, Clock, Globe, ArrowLeft, CheckCircle2, Lock, Sparkles } from 'lucide-react';
 
 export default function Configuracoes() {
   const { salon, refreshSalon } = useSalon();
@@ -80,9 +81,21 @@ export default function Configuracoes() {
           </div>
         </header>
 
-        <form onSubmit={handleSubmit} style={{ display: 'grid', gap: '20px', marginTop: '20px' }}>
+        {/* Upload de Logo - Adicionado no topo para destaque */}
+        <div style={{ marginBottom: '20px', marginTop: '20px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+             <Sparkles size={18} color={COLORS.sageGreen} />
+             <span style={{ fontSize: '14px', fontWeight: 'bold', color: COLORS.deepCharcoal }}>Identidade Visual</span>
+          </div>
+          <LogoUpload 
+            salonId={salon?.id} 
+            currentLogo={salon?.logo_url} 
+            onUploadSuccess={() => refreshSalon()} 
+          />
+        </div>
+
+        <form onSubmit={handleSubmit} style={{ display: 'grid', gap: '20px' }}>
           
-          {/* Link Público (Slug Desativado para Monetização) */}
           <div style={styles.card}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                <h3 style={styles.cardTitle}><Globe size={20} /> Link do Agendamento</h3>
@@ -92,16 +105,13 @@ export default function Configuracoes() {
               <label style={styles.label}>Sua URL Única</label>
               <input 
                 value={formData.slug}
-                disabled // Campo desabilitado conforme pedido
+                disabled 
                 style={{ ...styles.input, backgroundColor: '#f5f5f5', color: '#666', cursor: 'not-allowed' }}
               />
-              <p style={styles.helperText}>
-                Para alterar seu link personalizado, entre em contato com o suporte.
-              </p>
+              <p style={styles.helperText}>Para alterar seu link personalizado, entre em contato com o suporte.</p>
             </div>
           </div>
 
-          {/* Dados Básicos */}
           <div style={styles.card}>
             <h3 style={styles.cardTitle}><Building2 size={20} /> Perfil Profissional</h3>
             <div style={styles.inputGroup}>
@@ -123,7 +133,6 @@ export default function Configuracoes() {
             </div>
           </div>
 
-          {/* Horários e Contato */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px' }}>
             <div style={styles.card}>
               <h3 style={styles.cardTitle}><Clock size={20} /> Funcionamento</h3>
@@ -171,16 +180,8 @@ const styles = {
   card: { backgroundColor: 'white', padding: '24px', borderRadius: '20px', boxShadow: '0 4px 12px rgba(0,0,0,0.03)', display: 'grid', gap: '15px' },
   cardTitle: { margin: 0, fontSize: '1rem', fontWeight: 'bold', color: COLORS.deepCharcoal, display: 'flex', alignItems: 'center', gap: '10px' },
   inputGroup: { display: 'grid', gap: '6px' },
-  label: { fontSize: '0.85rem', fontWeight: '700', color: '#444' }, // Texto mais escuro para visibilidade
-  input: { 
-    padding: '12px', 
-    borderRadius: '10px', 
-    border: `1px solid #ddd`, 
-    fontSize: '14px', 
-    backgroundColor: '#fff', 
-    color: '#333', // Texto preto para visibilidade
-    outline: 'none'
-  },
+  label: { fontSize: '0.85rem', fontWeight: '700', color: '#444' },
+  input: { padding: '12px', borderRadius: '10px', border: `1px solid #ddd`, fontSize: '14px', backgroundColor: '#fff', color: '#333', outline: 'none' },
   row: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' },
   helperText: { margin: 0, fontSize: '11px', color: '#888' },
   saveButton: { padding: '16px', borderRadius: '15px', border: 'none', color: 'white', fontSize: '1rem', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', transition: 'all 0.3s ease' }

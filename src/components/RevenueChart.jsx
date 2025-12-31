@@ -25,18 +25,17 @@ ChartJS.register(
   Legend
 );
 
-export default function RevenueChart({ dataPoints }) {
-  // Configuração dos dados
+export default function RevenueChart({ dataPoints, label = "Faturamento", isCurrency = true }) {
   const data = {
     labels: ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'],
     datasets: [
       {
         fill: true,
-        label: 'Faturamento R$',
-        data: dataPoints, // Ex: [120, 190, 300, 500, 200, 1000, 800]
+        label: label,
+        data: dataPoints,
         borderColor: COLORS.sageGreen,
-        backgroundColor: 'rgba(138, 154, 134, 0.1)', // SageGreen com transparência
-        tension: 0.4, // Deixa a linha curvada (mais moderno)
+        backgroundColor: 'rgba(138, 154, 134, 0.1)',
+        tension: 0.4,
         pointRadius: 4,
         pointBackgroundColor: COLORS.sageGreen,
       },
@@ -47,37 +46,26 @@ export default function RevenueChart({ dataPoints }) {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
-      legend: {
-        display: false, // Escondemos a legenda para ficar mais minimalista
-      },
+      legend: { display: false },
       tooltip: {
         backgroundColor: COLORS.deepCharcoal,
-        padding: 12,
-        titleFont: { size: 14 },
-        bodyFont: { size: 14 },
-        displayColors: false,
+        callbacks: {
+          label: (context) => isCurrency 
+            ? `R$ ${context.parsed.y.toLocaleString('pt-BR')}` 
+            : `${context.parsed.y} atendimentos`
+        }
       }
     },
     scales: {
       y: {
         beginAtZero: true,
-        grid: {
-          display: true,
-          color: '#F0F0F0',
-        },
         ticks: {
-          callback: (value) => `R$ ${value}`,
+          // Aqui removemos o R$ se isCurrency for false
+          callback: (value) => isCurrency ? `R$ ${value}` : value,
           color: '#999',
         }
       },
-      x: {
-        grid: {
-          display: false,
-        },
-        ticks: {
-          color: '#999',
-        }
-      }
+      x: { ticks: { color: '#999' }, grid: { display: false } }
     },
   };
 
