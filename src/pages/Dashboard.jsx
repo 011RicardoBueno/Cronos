@@ -1,11 +1,11 @@
 import React from 'react';
-// Ajustado: Subindo um nível para sair de 'pages' e entrar em 'components'
 import DashboardHeader from '../components/layout/DashboardHeader';
 import DashboardStates from '../components/dashboard/DashboardStates'; 
 import DashboardModules from '../components/dashboard/DashboardModules'; 
 import RecentActivity from '../components/dashboard/RecentActivity';
 import { useSalon } from '../context/SalonContext';
 import { COLORS } from '../constants/dashboard';
+import { LayoutGrid } from 'lucide-react'; // Importe para o ícone do título
 
 export default function Dashboard() {
   const { salon, loading, error } = useSalon();
@@ -13,7 +13,8 @@ export default function Dashboard() {
   if (loading) {
     return (
       <div style={styles.loadingContainer}>
-        <p style={{ color: '#666' }}>Carregando dados do salão...</p>
+        <div style={styles.spinner}></div>
+        <p style={{ color: '#666', marginTop: '15px' }}>Carregando dados do salão...</p>
       </div>
     );
   }
@@ -40,9 +41,12 @@ export default function Dashboard() {
         </section>
 
         <section style={styles.section}>
-           <h2 style={styles.sectionTitle}>
-             Gestão e Operação
-           </h2>
+           <div style={styles.headerRow}>
+             <h2 style={styles.sectionTitle}>
+               <LayoutGrid size={20} /> Gestão e Operação
+             </h2>
+           </div>
+           {/* Este componente agora incluirá o card de 'Clientes' */}
            <DashboardModules />
         </section>
 
@@ -58,7 +62,7 @@ export default function Dashboard() {
           
           <div style={styles.cardFooter}>
             <p style={styles.footerText}>
-              Dica: Você pode gerenciar todos os horários na seção <strong>Agenda</strong>.
+              Dica: Clientes inativos aparecem em destaque na nova seção <strong>Clientes</strong>.
             </p>
           </div>
         </section>
@@ -69,6 +73,7 @@ export default function Dashboard() {
 }
 
 const styles = {
+  // ... (mantenha seus estilos anteriores)
   pageWrapper: {
     backgroundColor: COLORS.offWhite,
     minHeight: '100vh',
@@ -81,11 +86,17 @@ const styles = {
   section: {
     marginBottom: '35px'
   },
+  headerRow: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: '15px'
+  },
   sectionTitle: {
-    fontSize: '1.2rem',
+    fontSize: '1.1rem', // Leve ajuste para harmonia visual
     fontWeight: '700',
     color: COLORS.deepCharcoal,
-    marginBottom: '15px',
+    margin: 0,
     display: 'flex',
     alignItems: 'center',
     gap: '10px'
@@ -95,7 +106,8 @@ const styles = {
     padding: '24px', 
     borderRadius: '16px', 
     boxShadow: '0 4px 12px rgba(0,0,0,0.05)',
-    border: `1px solid #f0f0f0`
+    border: `1px solid #f0f0f0`,
+    marginBottom: '40px' // Espaço extra no final para mobile
   },
   cardHeader: {
     display: 'flex',
@@ -124,8 +136,18 @@ const styles = {
   loadingContainer: {
     height: '100vh',
     display: 'flex',
+    flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: COLORS.offWhite
+  },
+  // Adicionado um pequeno estilo de spinner para feedback visual
+  spinner: {
+    width: '30px',
+    height: '30px',
+    border: `3px solid ${COLORS.warmSand}`,
+    borderTop: `3px solid ${COLORS.sageGreen}`,
+    borderRadius: '50%',
+    animation: 'spin 1s linear infinite'
   }
 };

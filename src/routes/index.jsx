@@ -15,6 +15,8 @@ import Explorer from '../pages/client/Explorer';
 import SalonBooking from '../pages/client/SalonBooking';
 import MyAppointments from '../pages/client/MyAppointments';
 import PublicBookingPage from '../pages/public/PublicBookingPage';
+import Clients from '../pages/admin/Clients';
+import Financeiro from '../pages/financeiro/Financeiro';
 
 export const AppRoutes = () => {
   const { session, loading: authLoading, user } = useAuth();
@@ -52,6 +54,8 @@ export const AppRoutes = () => {
               <Route path="/profissionais" element={<Profissionais />} />
               <Route path="/configuracoes" element={<Configuracoes />} />
               <Route path="/meus-agendamentos" element={<MyAppointments />} />
+              <Route path="/admin/clientes" element={<Clients />} />
+              <Route path="/financeiro" element={<Financeiro />} />
 
               {/* Rotas exclusivas de Cliente */}
               <Route path="/agendamento-cliente" element={<Explorer />} />

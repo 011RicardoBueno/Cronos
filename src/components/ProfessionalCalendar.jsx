@@ -146,11 +146,8 @@ export default function ProfessionalCalendar({
         culture="pt-BR"
         onEventDrop={onEventDrop}
         onSelectEvent={(event) => {
-          if (event.start < new Date()) {
-            alert("Para manter o histórico, agendamentos passados não podem ser removidos.");
-            return;
-          }
-          handleDeleteSlot(event.id);
+          console.log("Evento clicado no calendário:", event);
+          handleDeleteSlot(event.raw);
         }}
         // Notifica a Agenda.jsx quando o usuário clica em Anterior/Próximo/Hoje
         onNavigate={(newDate) => {

@@ -2,13 +2,13 @@ import React from 'react';
 // Importamos as cores para garantir que o card funcione mesmo sem props
 import { COLORS } from '../../../constants/dashboard';
 
-export default function DashboardCard({ title, description, icon, onClick, accentColor }) {
+export default function DashboardCard({ title, description, icon, onClick, accentColor, badge }) {
   return (
     <div
       onClick={onClick}
       style={{
         cursor: 'pointer',
-        backgroundColor: '#FFFFFF', // Cor fixa para evitar erro de undefined
+        backgroundColor: '#FFFFFF',
         borderRadius: '16px',
         padding: '24px',
         boxShadow: '0 4px 12px rgba(0,0,0,0.05)',
@@ -17,7 +17,9 @@ export default function DashboardCard({ title, description, icon, onClick, accen
         flexDirection: 'column',
         alignItems: 'flex-start',
         borderTop: `4px solid ${accentColor || COLORS.sageGreen}`, // Barra de cor no topo
-        gap: '12px'
+        gap: '12px',
+        position: 'relative', // Necessário para o posicionamento do badge
+        overflow: 'hidden'    // Garante que nada escape das bordas arredondadas
       }}
       onMouseEnter={e => {
         e.currentTarget.style.transform = 'translateY(-5px)';
@@ -28,6 +30,25 @@ export default function DashboardCard({ title, description, icon, onClick, accen
         e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.05)';
       }}
     >
+      {/* Renderização do Badge (ex: PRO ou CRM) */}
+      {badge && (
+        <span style={{
+          position: 'absolute',
+          top: '12px',
+          right: '12px',
+          backgroundColor: accentColor || COLORS.sageGreen,
+          color: 'white',
+          fontSize: '10px',
+          fontWeight: 'bold',
+          padding: '2px 8px',
+          borderRadius: '20px',
+          textTransform: 'uppercase',
+          letterSpacing: '0.5px'
+        }}>
+          {badge}
+        </span>
+      )}
+
       {/* Renderização do Ícone */}
       {icon && (
         <div style={{ 

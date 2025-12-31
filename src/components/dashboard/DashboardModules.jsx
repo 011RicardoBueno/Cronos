@@ -1,6 +1,12 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Users, Calendar, Scissors, Settings } from 'lucide-react';
+import { 
+  Users, 
+  Calendar, 
+  Scissors, 
+  Settings, 
+  DollarSign 
+} from 'lucide-react';
 import DashboardCard from './cards/DashboardCard';
 import { COLORS } from '../../constants/dashboard';
 
@@ -14,6 +20,14 @@ const DashboardModules = () => {
       icon: <Calendar size={24} />,
       path: "/agenda",
       color: COLORS.sageGreen
+    },
+    {
+      title: "Financeiro",
+      description: "Lucro, despesas e comissões",
+      icon: <DollarSign size={24} />,
+      path: "/financeiro",
+      color: COLORS.deepCharcoal,
+      badge: "PRO"
     },
     {
       title: "Profissionais",
@@ -30,11 +44,19 @@ const DashboardModules = () => {
       color: COLORS.sageGreen
     },
     {
+      title: 'Clientes',
+      icon: <Users size={24} />,
+      path: '/admin/clientes', // Ajustado conforme sua estrutura de pastas
+      description: 'Fidelidade e Histórico',
+      color: "#6366F1", 
+      badge: 'CRM'
+    },
+    {
       title: "Configurações",
       description: "Dados do salão e horários",
       icon: <Settings size={24} />,
       path: "/configuracoes",
-      color: COLORS.warmSand // Ajustado para usar uma cor da sua paleta consistente
+      color: COLORS.warmSand
     }
   ];
 
@@ -48,6 +70,7 @@ const DashboardModules = () => {
           icon={mod.icon}
           onClick={() => navigate(mod.path)}
           accentColor={mod.color}
+          badge={mod.badge} // Passando o badge para o card
         />
       ))}
     </div>
@@ -57,10 +80,9 @@ const DashboardModules = () => {
 const styles = {
   grid: { 
     display: 'grid', 
-    // Garante que em telas muito pequenas (mobile) os cards ocupem a largura toda
     gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', 
     gap: '20px',
-    marginTop: '10px' // Reduzi um pouco para alinhar melhor com o título da seção no Dashboard.jsx
+    marginTop: '10px'
   }
 };
 
