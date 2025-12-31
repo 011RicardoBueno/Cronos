@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { supabase } from '../lib/supabase';
 import imageCompression from 'browser-image-compression';
-import { Upload, Loader2, Image as ImageIcon, X } from 'lucide-react';
+import { Upload, Loader2, Image as ImageIcon } from 'lucide-react';
 import { COLORS } from '../constants/dashboard';
 
 export default function LogoUpload({ salonId, currentLogo, onUploadSuccess }) {
@@ -13,51 +13,60 @@ export default function LogoUpload({ salonId, currentLogo, onUploadSuccess }) {
       setUploading(true);
 
       if (!event.target.files || event.target.files.length === 0) {
-        throw new Error('Você deve selecionar uma imagem para upload.');
+        return;
       }
 
       const file = event.target.files[0];
       
-      // 1. Configurações de Compressão
+      // 1. Compressão para WebP (Reduzir consumo e aumentar velocidade)
       const options = {
-        maxSizeMB: 0.2, // Máximo 200KB
-        maxWidthOrHeight: 400, // Redimensiona para 400px
+        maxSizeMB: 0.15, // Apenas 150KB
+        maxWidthOrHeight: 400,
         useWebWorker: true,
-        fileType: 'image/webp' // Converte para WebP (mais leve)
+        fileType: 'image/webp'
       };
 
       const compressedFile = await imageCompression(file, options);
 
-      // 2. Caminho do arquivo (salão/logo_timestamp.webp)
-      const fileExt = 'webp';
-      const fileName = `${salonId}/logo_${Date.now()}.${fileExt}`;
-      const filePath = fileName;
+      // 2. Caminho único: salon_id/logo.webp
+      // Usamos o nome fixo 'logo.webp' com upsert para não acumular lixo no storage
+      const filePath = `${salonId}/logo.webp`;
 
       // 3. Upload para o Supabase Storage
-      const { error: uploadError } = await supabase.storage
+      const { data, error: uploadError } = await supabase.storage
         .from('logos')
-        .upload(filePath, compressedFile, { upsert: true });
+        .upload(filePath, compressedFile, { 
+          upsert: true,
+          contentType: 'image/webp'
+        });
 
-      if (uploadError) throw uploadError;
+      if (uploadError) {
+        if (uploadError.message.includes('row-level security')) {
+          throw new Error('Erro de permissão: Execute as políticas de RLS no SQL Editor.');
+        }
+        throw uploadError;
+      }
 
-      // 4. Obter a URL pública
+      // 4. Obter a URL pública com cache buster para evitar carregar imagem antiga
       const { data: { publicUrl } } = supabase.storage
         .from('logos')
         .getPublicUrl(filePath);
+      
+      const finalUrl = `${publicUrl}?t=${Date.now()}`;
 
-      // 5. Atualizar a tabela salons
+      // 5. Atualizar a tabela salons no banco de dados
       const { error: updateError } = await supabase
         .from('salons')
-        .update({ logo_url: publicUrl })
+        .update({ logo_url: finalUrl })
         .eq('id', salonId);
 
       if (updateError) throw updateError;
 
-      setPreview(publicUrl);
-      if (onUploadSuccess) onUploadSuccess(publicUrl);
-      alert('Logo atualizado com sucesso!');
-
+      setPreview(finalUrl);
+      if (onUploadSuccess) onUploadSuccess(finalUrl);
+      
     } catch (error) {
+      console.error('Erro no upload:', error);
       alert(error.message);
     } finally {
       setUploading(false);
@@ -68,28 +77,24 @@ export default function LogoUpload({ salonId, currentLogo, onUploadSuccess }) {
     <div style={styles.container}>
       <div style={styles.previewContainer}>
         {preview ? (
-          <img src={preview} alt="Logo" style={styles.logoImage} />
+          <img src={preview} alt="Logo Preview" style={styles.logoImage} />
         ) : (
           <div style={styles.placeholder}>
-            <ImageIcon size={40} color="#ccc" />
+            <ImageIcon size={32} color="#CBD5E1" />
           </div>
         )}
         
         {uploading && (
           <div style={styles.overlay}>
-            <Loader2 className="animate-spin" color="white" />
+            <Loader2 className="animate-spin" color="white" size={24} />
           </div>
         )}
       </div>
 
       <div style={styles.actions}>
-        <label style={{...styles.uploadBtn, opacity: uploading ? 0.5 : 1}}>
-          {uploading ? 'Enviando...' : (
-            <>
-              <Upload size={18} />
-              Alterar Logo
-            </>
-          )}
+        <label style={{...styles.uploadBtn, cursor: uploading ? 'not-allowed' : 'pointer', opacity: uploading ? 0.7 : 1}}>
+          <Upload size={16} />
+          {uploading ? 'Processando...' : 'Alterar Logotipo'}
           <input
             type="file"
             accept="image/*"
@@ -98,19 +103,47 @@ export default function LogoUpload({ salonId, currentLogo, onUploadSuccess }) {
             style={{ display: 'none' }}
           />
         </label>
-        <p style={styles.hint}>Recomendado: Quadrado, min. 400x400px.</p>
+        <p style={styles.hint}>Formatos aceitos: JPG, PNG, WebP. Máx: 200KB.</p>
       </div>
     </div>
   );
 }
 
 const styles = {
-  container: { display: 'flex', alignItems: 'center', gap: '25px', padding: '20px', backgroundColor: 'white', borderRadius: '16px', border: '1px solid #eee' },
-  previewContainer: { position: 'relative', width: '100px', height: '100px', borderRadius: '12px', overflow: 'hidden', border: '2px solid #f0f0f0', backgroundColor: '#fafafa' },
+  container: { 
+    display: 'flex', 
+    alignItems: 'center', 
+    gap: '20px', 
+    padding: '16px', 
+    backgroundColor: '#FFFFFF', 
+    borderRadius: '16px', 
+    border: '1px solid #E2E8F0',
+    marginBottom: '10px'
+  },
+  previewContainer: { 
+    position: 'relative', 
+    width: '80px', 
+    height: '80px', 
+    borderRadius: '14px', 
+    overflow: 'hidden', 
+    backgroundColor: '#F8FAFC',
+    border: '1px solid #F1F5F9'
+  },
   logoImage: { width: '100%', height: '100%', objectFit: 'cover' },
   placeholder: { width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' },
-  overlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center' },
-  actions: { display: 'flex', flexDirection: 'column', gap: '8px' },
-  uploadBtn: { display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 18px', backgroundColor: COLORS.deepCharcoal, color: 'white', borderRadius: '8px', fontSize: '14px', fontWeight: '600', cursor: 'pointer', transition: '0.2s' },
-  hint: { margin: 0, fontSize: '12px', color: '#999' }
+  overlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center' },
+  actions: { display: 'flex', flexDirection: 'column', gap: '6px' },
+  uploadBtn: { 
+    display: 'flex', 
+    alignItems: 'center', 
+    gap: '8px', 
+    padding: '10px 16px', 
+    backgroundColor: COLORS.deepCharcoal, 
+    color: 'white', 
+    borderRadius: '10px', 
+    fontSize: '13px', 
+    fontWeight: '600', 
+    transition: 'all 0.2s' 
+  },
+  hint: { margin: 0, fontSize: '11px', color: '#64748B' }
 };
