@@ -1,166 +1,98 @@
 import React, { useState, useEffect } from 'react';
-import { COLORS } from '../../constants/dashboard';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
+import { COLORS } from '../../constants/dashboard';
+import { Search, MapPin, ChevronRight } from 'lucide-react';
+import ClientHeader from '../../components/ui/ClientHeader';
 
-const Explorer = () => {
+export default function Explorer() {
   const [salons, setSalons] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const navigate = useNavigate();
 
   useEffect(() => {
+    const fetchSalons = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('salons')
+          .select('*')
+          .order('name');
+        if (error) throw error;
+        setSalons(data || []);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
     fetchSalons();
   }, []);
 
-  const fetchSalons = async () => {
-    try {
-      setLoading(true);
-      // Buscamos os salões cadastrados no banco
-      const { data, error } = await supabase
-        .from('salons')
-        .select('*')
-        .order('name', { ascending: true });
-
-      if (error) throw error;
-      setSalons(data || []);
-    } catch (err) {
-      console.error('Erro ao buscar salões:', err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Filtro simples por nome ou endereço
-  const filteredSalons = salons.filter(salon => 
-    salon.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    salon.address?.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredSalons = salons.filter(s => 
+    s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    s.address?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const handleLogout = async () => {
-  await supabase.auth.signOut();
-  window.location.href = "/";
-};
-
   return (
-    <div style={{
-      minHeight: '100vh',
-      backgroundColor: COLORS.offWhite,
-      padding: '40px 20px'
-    }}>
-      <div style={{ maxWidth: '800px', margin: '0 auto' }}>
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '20px' }}>
-  <button 
-    onClick={handleLogout}
-    style={{
-      background: 'none',
-      border: 'none',
-      color: COLORS.deepCharcoal,
-      cursor: 'pointer',
-      fontSize: '14px',
-      textDecoration: 'underline'
-    }}
-  >
-    Sair da conta
-  </button>
-</div>
+    <div style={{ backgroundColor: COLORS.offWhite, minHeight: '100vh' }}>
+      <ClientHeader />
+      
+      <div style={styles.container}>
+        <h2 style={styles.title}>Encontre seu salão</h2>
         
-        {/* Header da Exploração */}
-        <div style={{ marginBottom: '40px', textAlign: 'center' }}>
-          <h1 style={{ color: COLORS.deepCharcoal, fontSize: '32px', fontWeight: '700', marginBottom: '10px' }}>
-            Encontre seu Salão
-          </h1>
-          <p style={{ color: '#666', fontSize: '16px' }}>
-            Descubra os melhores profissionais perto de você.
-          </p>
-        </div>
-
-        {/* Barra de Busca */}
-        <div style={{ marginBottom: '32px' }}>
-          <input
-            type="text"
-            placeholder="Buscar por nome ou endereço..."
+        <div style={styles.searchBox}>
+          <Search size={20} color="#999" />
+          <input 
+            placeholder="Nome ou endereço..." 
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            style={{
-              width: '100%',
-              padding: '16px 20px',
-              borderRadius: '12px',
-              border: `1px solid ${COLORS.dustyRose}`,
-              fontSize: '16px',
-              backgroundColor: COLORS.white,
-              boxShadow: '0 4px 12px rgba(0,0,0,0.05)',
-              outline: 'none',
-              boxSizing: 'border-box'
-            }}
+            style={styles.searchInput}
           />
         </div>
 
-        {/* Listagem */}
         {loading ? (
-          <p style={{ textAlign: 'center', color: '#666' }}>Carregando salões...</p>
-        ) : filteredSalons.length > 0 ? (
-          <div style={{ display: 'grid', gap: '20px' }}>
-            {filteredSalons.map((salon) => (
+          <p style={styles.center}>Buscando salões...</p>
+        ) : (
+          <div style={styles.grid}>
+            {filteredSalons.map(salon => (
               <div 
-                key={salon.id}
+                key={salon.id} 
                 onClick={() => navigate(`/agendar/${salon.id}`)}
-                style={{
-                  backgroundColor: COLORS.white,
-                  borderRadius: '16px',
-                  padding: '24px',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  cursor: 'pointer',
-                  transition: 'transform 0.2s, box-shadow 0.2s',
-                  boxShadow: '0 4px 20px rgba(0,0,0,0.05)',
-                  border: `1px solid transparent`
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.transform = 'translateY(-4px)';
-                  e.currentTarget.style.boxShadow = '0 8px 30px rgba(0,0,0,0.1)';
-                  e.currentTarget.style.borderColor = COLORS.sageGreen;
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.transform = 'translateY(0)';
-                  e.currentTarget.style.boxShadow = '0 4px 20px rgba(0,0,0,0.05)';
-                  e.currentTarget.style.borderColor = 'transparent';
-                }}
+                style={styles.card}
               >
-                <div>
-                  <h3 style={{ color: COLORS.deepCharcoal, fontSize: '20px', marginBottom: '8px' }}>
-                    {salon.name}
-                  </h3>
-                  <p style={{ color: '#666', fontSize: '14px', marginBottom: '4px' }}>
-                    📍 {salon.address || 'Endereço não informado'}
-                  </p>
-                  <p style={{ color: COLORS.sageGreen, fontSize: '14px', fontWeight: '600' }}>
-                    📞 {salon.phone || 'Ver telefone'}
-                  </p>
+                <div style={styles.cardInfo}>
+                  <div style={styles.salonName}>{salon.name}</div>
+                  <div style={styles.salonAddress}>
+                    <MapPin size={14} />
+                    {salon.address || 'Endereço não informado'}
+                  </div>
                 </div>
-                
-                <div style={{
-                  backgroundColor: COLORS.warmSand,
-                  color: COLORS.deepCharcoal,
-                  padding: '12px 20px',
-                  borderRadius: '10px',
-                  fontWeight: '600',
-                  fontSize: '14px'
-                }}>
-                  Agendar
-                </div>
+                <ChevronRight color={COLORS.sageGreen} />
               </div>
             ))}
-          </div>
-        ) : (
-          <div style={{ textAlign: 'center', padding: '40px', color: '#999' }}>
-            Nenhum salão encontrado com esse nome.
           </div>
         )}
       </div>
     </div>
   );
-};
+}
 
-export default Explorer;
+const styles = {
+  container: { maxWidth: '500px', margin: '0 auto', padding: '0 20px 40px' },
+  title: { fontSize: '1.5rem', fontWeight: 'bold', color: COLORS.deepCharcoal, marginBottom: '20px' },
+  searchBox: { 
+    display: 'flex', alignItems: 'center', gap: '10px', backgroundColor: 'white', 
+    padding: '12px 15px', borderRadius: '14px', marginBottom: '25px', border: '1px solid #eee' 
+  },
+  searchInput: { border: 'none', outline: 'none', width: '100%', fontSize: '1rem', color: '#333' },
+  grid: { display: 'grid', gap: '15px' },
+  card: { 
+    backgroundColor: 'white', padding: '20px', borderRadius: '16px', display: 'flex', 
+    justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', 
+    boxShadow: '0 2px 10px rgba(0,0,0,0.03)', border: '1px solid #eee' 
+  },
+  salonName: { fontWeight: 'bold', fontSize: '1.1rem', color: COLORS.deepCharcoal, marginBottom: '4px' },
+  salonAddress: { fontSize: '0.85rem', color: '#888', display: 'flex', alignItems: 'center', gap: '4px' },
+  center: { textAlign: 'center', marginTop: '40px', color: '#666' }
+};

@@ -13,14 +13,15 @@ import Profissionais from '../pages/profissionais/Profissionais';
 import Configuracoes from '../pages/configuracoes/Configuracoes';
 import Explorer from '../pages/client/Explorer'; 
 import SalonBooking from '../pages/client/SalonBooking';
-import PublicBookingPage from '../pages/public/PublicBookingPage'; // Caminho corrigido (../)
+import MyAppointments from '../pages/client/MyAppointments'; // Nova Importação
+import PublicBookingPage from '../pages/public/PublicBookingPage';
 
 export const AppRoutes = () => {
   const { session, loading: authLoading, user } = useAuth();
   const { loading: salonLoading, needsSetup } = useSalon();
 
-  // 1. ROTAS TOTALMENTE PÚBLICAS (Acessíveis sem login)
-  // Colocamos antes de qualquer verificação de session
+  // 1. ROTAS TOTALMENTE PÚBLICAS (Link da Bio / Público)
+  // Nota: Mantemos o check de pathname para garantir prioridade total
   if (window.location.pathname.startsWith('/p/')) {
     return (
       <Routes>
@@ -37,7 +38,7 @@ export const AppRoutes = () => {
     );
   }
 
-  // 2. SE NÃO ESTÁ LOGADO (E não é rota pública), VAI PARA LOGIN
+  // 2. SE NÃO ESTÁ LOGADO
   if (!session) {
     return (
       <Routes>
@@ -55,6 +56,7 @@ export const AppRoutes = () => {
       <Routes>
         <Route path="/agendamento-cliente" element={<Explorer />} />
         <Route path="/agendar/:id" element={<SalonBooking />} />
+        <Route path="/meus-agendamentos" element={<MyAppointments />} /> {/* Nova Rota */}
         <Route path="*" element={<Navigate to="/agendamento-cliente" replace />} />
       </Routes>
     );
@@ -77,6 +79,8 @@ export const AppRoutes = () => {
       <Route path="/servicos" element={<Servicos />} />
       <Route path="/profissionais" element={<Profissionais />} />
       <Route path="/configuracoes" element={<Configuracoes />} />
+      {/* Opcional: Permitir que o admin também veja seus próprios agendamentos se ele tiver o papel de cliente também */}
+      <Route path="/meus-agendamentos" element={<MyAppointments />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { CalendarCheck, Users, DollarSign, TrendingUp, RefreshCw } from 'lucide-react';
+import { CalendarCheck, Users, DollarSign, TrendingUp, RefreshCw, CreditCard } from 'lucide-react';
 import { COLORS } from '../../constants/dashboard';
 import { supabase } from '../../lib/supabase';
 import { useSalon } from '../../context/SalonContext';
-import moment from 'moment'; // Importante para manipulação de datas
+import moment from 'moment';
 
 const StatCard = ({ label, value, icon: Icon, trend, color, loading }) => (
   <div style={{
@@ -25,7 +25,7 @@ const StatCard = ({ label, value, icon: Icon, trend, color, loading }) => (
         {loading ? '...' : value}
       </h3>
       {trend && (
-        <span style={{ fontSize: '0.75rem', color: '#2D6A4F', fontWeight: '600' }}>{trend}</span>
+        <span style={{ fontSize: '0.75rem', color: '#666', fontWeight: '500', opacity: 0.8 }}>{trend}</span>
       )}
     </div>
   </div>
@@ -37,13 +37,14 @@ export default function DashboardStates() {
   const [statsData, setStatsData] = useState({
     todayCount: 0,
     expectedRevenue: 0,
+    realizedRevenue: 0,
     uniqueClients: 0,
     occupancyRate: 0,
+    ticketMedio: 0,
     loading: true
   });
 
   const fetchDashboardData = useCallback(async (showIndicator = false) => {
-    // Se ainda não carregou o salão ou não tem profissionais, não busca
     if (!professionals || professionals.length === 0 || !salon) {
       if (!salonLoading) setStatsData(prev => ({ ...prev, loading: false }));
       return;
@@ -52,36 +53,47 @@ export default function DashboardStates() {
     if (showIndicator) setIsRefreshing(true);
 
     try {
-      // Usamos moment para garantir que pegamos o dia de hoje no fuso local
       const startOfDay = moment().startOf('day').toISOString();
       const endOfDay = moment().endOf('day').toISOString();
 
       const { data, error } = await supabase
         .from('slots')
-        .select(`id, client_id, services (price)`)
+        .select(`id, client_id, status, services (price)`)
         .in('professional_id', professionals.map(p => p.id))
         .gte('start_time', startOfDay)
         .lte('start_time', endOfDay);
 
       if (error) throw error;
 
-      // Cálculos
-      const count = data?.length || 0;
-      const revenue = data?.reduce((acc, slot) => acc + (slot.services?.price || 0), 0);
+      // 1. Cálculos de Receita (Prevista vs Realizada)
+      const expected = data?.reduce((acc, slot) => acc + (slot.services?.price || 0), 0) || 0;
+      const realized = data?.filter(s => s.status === 'completed')
+                           .reduce((acc, slot) => acc + (slot.services?.price || 0), 0) || 0;
       
-      // Contagem de clientes únicos hoje
+      // 2. Ticket Médio
+      const tMedio = data?.length > 0 ? expected / data.length : 0;
+
+      // 3. Clientes Únicos
       const clientsSet = new Set(data?.map(s => s.client_id).filter(id => id));
       
-      // Cálculo simplificado de ocupação: 
-      // (Agendamentos / (Profissionais * 10 horas de trabalho)) * 100
-      const estimatedCapacity = professionals.length * 10; 
-      const occupancy = count > 0 ? Math.min(Math.round((count / estimatedCapacity) * 100), 100) : 0;
+      // 4. Ocupação Inteligente (Baseada no horário de funcionamento do Salon)
+      const openHour = parseInt(salon?.opening_time?.split(':')[0] || 8);
+      const closeHour = parseInt(salon?.closing_time?.split(':')[0] || 18);
+      const hoursPerDay = closeHour - openHour;
+      
+      // Consideramos 1 slot = 30min de capacidade. 1 hora = 2 slots.
+      const totalSlotsCapacity = professionals.length * hoursPerDay * 2;
+      const occupancy = data?.length > 0 
+        ? Math.min(Math.round((data.length / totalSlotsCapacity) * 100), 100) 
+        : 0;
 
       setStatsData({
-        todayCount: count,
-        expectedRevenue: revenue,
+        todayCount: data?.length || 0,
+        expectedRevenue: expected,
+        realizedRevenue: realized,
         uniqueClients: clientsSet.size,
         occupancyRate: occupancy,
+        ticketMedio: tMedio,
         loading: false
       });
     } catch (err) {
@@ -100,15 +112,15 @@ export default function DashboardStates() {
       label: "Agendamentos Hoje",
       value: statsData.todayCount.toString(),
       icon: CalendarCheck,
-      trend: "Total do dia",
+      trend: `${statsData.occupancyRate}% de ocupação`,
       color: COLORS.sageGreen,
       loading: statsData.loading || salonLoading
     },
     {
-      label: "Clientes Hoje",
-      value: statsData.uniqueClients.toString(),
-      icon: Users,
-      trend: "Pessoas únicas",
+      label: "Ticket Médio",
+      value: `R$ ${statsData.ticketMedio.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+      icon: TrendingUp,
+      trend: "Média por cliente",
       color: COLORS.deepCharcoal,
       loading: statsData.loading || salonLoading
     },
@@ -116,16 +128,16 @@ export default function DashboardStates() {
       label: "Receita Prevista",
       value: `R$ ${statsData.expectedRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
       icon: DollarSign,
-      trend: "Total bruto",
+      trend: "Total bruto hoje",
       color: "#2D6A4F",
       loading: statsData.loading || salonLoading
     },
     {
-      label: "Ocupação",
-      value: `${statsData.occupancyRate}%`,
-      icon: TrendingUp,
-      trend: "Capacidade",
-      color: "#f39c12", // Cor de destaque para ocupação
+      label: "Já Recebido",
+      value: `R$ ${statsData.realizedRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+      icon: CreditCard,
+      trend: "Status: Concluído",
+      color: "#3498db",
       loading: statsData.loading || salonLoading
     }
   ];
@@ -146,24 +158,20 @@ export default function DashboardStates() {
             fontSize: '0.85rem',
             cursor: 'pointer',
             padding: '5px 10px',
-            borderRadius: '5px',
-            transition: 'all 0.2s'
+            borderRadius: '5px'
           }}
         >
           <RefreshCw 
             size={16} 
-            style={{
-              animation: isRefreshing ? 'spin 1s linear infinite' : 'none',
-              transition: 'all 0.2s'
-            }} 
+            style={{ animation: isRefreshing ? 'spin 1s linear infinite' : 'none' }} 
           />
-          {isRefreshing ? 'Atualizando...' : 'Atualizar dados'}
+          {isRefreshing ? 'Sincronizando...' : 'Sincronizar dados'}
         </button>
       </div>
 
       <div style={{ 
         display: 'grid', 
-        gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', 
+        gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', 
         gap: '20px' 
       }}>
         {stats.map((stat, index) => (

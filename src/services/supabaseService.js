@@ -22,23 +22,34 @@ export const fetchServicesAndProfessionals = async (salonId) => {
 
 // Agora aceita datas para evitar carregar dados desnecessários
 export const fetchProfessionalSlots = async (professionalId, startDate, endDate) => {
-  let query = supabase
-    .from('slots')
-    .select('*')
-    .eq('professional_id', professionalId);
+  try {
+    // 1. Iniciamos a query pedindo TUDO (*) + os dados da tabela services
+    let query = supabase
+      .from('slots')
+      .select(`
+        *,
+        services (
+          name,
+          price
+        )
+      `)
+      .eq('professional_id', professionalId);
 
-  // Se datas forem passadas, filtra o período (ex: a semana atual)
-  if (startDate && endDate) {
-    query = query.gte('start_time', startDate).lte('start_time', endDate);
-  }
+    // 2. Aplicamos os filtros de data APENAS se eles existirem
+    if (startDate && endDate) {
+      query = query.gte('start_time', startDate).lte('start_time', endDate);
+    }
+
+    // 3. Executamos a query que construímos (usando a variável 'query')
+    const { data, error } = await query.order('start_time', { ascending: true });
+
+    if (error) throw error;
     
-  const { data, error } = await supabase.from('slots').select('*').eq('professional_id', professionalId);
-    
-  if (error) {
+    return data;
+  } catch (error) {
     console.error("Erro na busca de slots:", error);
     throw error;
   }
-  return data;
 };
 
 export const deleteSlot = async (slotId) => {

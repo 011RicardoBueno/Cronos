@@ -1,227 +1,306 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { COLORS } from '../../constants/dashboard';
+import { CheckCircle, ArrowLeft } from 'lucide-react';
 import moment from 'moment';
+import ClientHeader from '../../components/ui/ClientHeader';
 
-const SalonBooking = () => {
-  const { id } = useParams();
+export default function SalonBooking({ publicMode = false, salonIdFromSlug = null }) {
+  const { id: paramId } = useParams();
   const navigate = useNavigate();
   
+  const identifier = salonIdFromSlug || paramId;
+
   const [salon, setSalon] = useState(null);
   const [services, setServices] = useState([]);
   const [professionals, setProfessionals] = useState([]);
   const [availableSlots, setAvailableSlots] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [step, setStep] = useState(1);
 
   const [selectedService, setSelectedService] = useState(null);
   const [selectedProfessional, setSelectedProfessional] = useState(null);
   const [selectedDate, setSelectedDate] = useState(moment().format('YYYY-MM-DD'));
   const [selectedTime, setSelectedTime] = useState(null);
+  const [clientData, setClientData] = useState({ name: '', phone: '' });
+
+  // --- FUNÇÃO DE MÁSCARA ---
+  const formatPhone = (value) => {
+    if (!value) return "";
+    const phone = value.replace(/\D/g, "");
+    if (phone.length <= 11) {
+      return phone
+        .replace(/^(\d{2})(\d)/g, "($1) $2")
+        .replace(/(\d{5})(\d)/, "$1-$2");
+    }
+    return phone.substring(0, 11).replace(/^(\d{2})(\d{5})(\d{4})/, "($1) $2-$3");
+  };
+
+  // --- AUTO-FILL DE DADOS DO USUÁRIO ---
+  useEffect(() => {
+    const loadUserProfile = async () => {
+      if (publicMode) return;
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        setClientData({
+          name: user.user_metadata?.full_name || '',
+          phone: formatPhone(user.user_metadata?.phone || '')
+        });
+      }
+    };
+    loadUserProfile();
+  }, [publicMode]);
 
   useEffect(() => {
-    const fetchSalonDetails = async () => {
+    const loadData = async () => {
+      if (!identifier) return;
       try {
         setLoading(true);
-        const [salonRes, servicesRes, profsRes] = await Promise.all([
-          supabase.from('salons').select('*').eq('id', id).single(),
-          supabase.from('services').select('*').eq('salon_id', id),
-          supabase.from('professionals').select('*').eq('salon_id', id)
+        const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(identifier);
+        
+        const query = supabase.from('salons').select('*');
+        if (isUUID) query.eq('id', identifier);
+        else query.eq('slug', identifier);
+
+        const { data: salonData, error: sError } = await query.single();
+        if (sError || !salonData) throw new Error("Salão não encontrado");
+
+        setSalon(salonData);
+
+        const [serRes, pRes] = await Promise.all([
+          supabase.from('services').select('*').eq('salon_id', salonData.id),
+          supabase.from('professionals').select('*').eq('salon_id', salonData.id)
         ]);
 
-        if (salonRes.error) throw salonRes.error;
-        setSalon(salonRes.data);
-        setServices(servicesRes.data || []);
-        setProfessionals(profsRes.data || []);
+        setServices(serRes.data || []);
+        setProfessionals(pRes.data || []);
       } catch (err) {
-        console.error('Erro ao carregar detalhes:', err);
+        console.error(err);
       } finally {
         setLoading(false);
       }
     };
-    fetchSalonDetails();
-  }, [id]);
+    loadData();
+  }, [identifier]);
 
-  useEffect(() => {
-    const generateAndFilterSlots = async () => {
-      if (!selectedProfessional || !selectedDate || !salon) return;
+  const fetchSlots = useCallback(async () => {
+    if (!selectedProfessional || !selectedDate || !salon) return;
 
-      // 1. Define horário de funcionamento (usa o do salão ou padrão 08-20)
-      const startHour = salon.opening_time ? parseInt(salon.opening_time.split(':')[0]) : 8;
-      const endHour = salon.closing_time ? parseInt(salon.closing_time.split(':')[0]) : 20;
+    let startH = parseInt((salon.opening_time || '08:00').split(':')[0]);
+    let endH = parseInt((salon.closing_time || '19:00').split(':')[0]);
+    if (endH <= startH) endH = 24;
 
-      const allPossibleSlots = [];
-      for (let i = startHour; i < endHour; i++) {
-        allPossibleSlots.push(`${i.toString().padStart(2, '0')}:00`);
-        allPossibleSlots.push(`${i.toString().padStart(2, '0')}:30`);
-      }
+    const times = [];
+    for (let h = startH; h < endH; h++) {
+      times.push(`${h.toString().padStart(2, '0')}:00`, `${h.toString().padStart(2, '0')}:30`);
+    }
 
-      // 2. Busca slots ocupados
-      const { data: busySlots } = await supabase
-        .from('slots')
-        .select('start_time, end_time')
-        .eq('professional_id', selectedProfessional.id)
-        .gte('start_time', `${selectedDate}T00:00:00Z`)
-        .lte('start_time', `${selectedDate}T23:59:59Z`);
+    const startDay = moment(selectedDate).startOf('day').toISOString();
+    const endDay = moment(selectedDate).endOf('day').toISOString();
 
-      const busyTimes = busySlots?.map(s => moment(s.start_time).format('HH:mm')) || [];
+    const { data: busy } = await supabase
+      .from('slots')
+      .select('start_time')
+      .eq('professional_id', selectedProfessional.id)
+      .gte('start_time', startDay)
+      .lte('start_time', endDay);
 
-      // 3. Filtra: Remove ocupados e horários passados (se for hoje)
-      const filtered = allPossibleSlots.filter(t => {
-        const isBusy = busyTimes.includes(t);
-        const isPast = moment(`${selectedDate} ${t}`).isBefore(moment());
-        return !isBusy && !isPast;
-      });
-
-      setAvailableSlots(filtered);
-    };
-
-    generateAndFilterSlots();
+    const busyTimes = busy?.map(b => moment(b.start_time).format('HH:mm')) || [];
+    const filtered = times.filter(t => {
+      const isPast = moment(`${selectedDate} ${t}`).isBefore(moment().add(10, 'minutes'));
+      return !busyTimes.includes(t) && !isPast;
+    });
+    setAvailableSlots(filtered);
   }, [selectedProfessional, selectedDate, salon]);
 
-  const handleConfirmBooking = async () => {
-    try {
-      if (!selectedService || !selectedProfessional || !selectedTime) return;
+  useEffect(() => { fetchSlots(); }, [fetchSlots]);
 
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        alert("Sessão expirada. Por favor, faça login novamente.");
+  const handleBooking = async () => {
+    if (!clientData.name.trim() || clientData.phone.length < 14) {
+      alert("Por favor, preencha nome e telefone corretamente.");
+      return;
+    }
+
+    try {
+      const startTime = moment(`${selectedDate} ${selectedTime}`).toISOString();
+      
+      // --- BLOQUEIO DE CONCORRÊNCIA (DOUBLE BOOKING) ---
+      const { data: conflict } = await supabase
+        .from('slots')
+        .select('id')
+        .eq('professional_id', selectedProfessional.id)
+        .eq('start_time', startTime)
+        .maybeSingle();
+
+      if (conflict) {
+        alert("Este horário acabou de ser preenchido por outra pessoa. Por favor, escolha outro.");
+        setStep(2);
+        fetchSlots();
         return;
       }
-      
-      const startTime = moment(`${selectedDate} ${selectedTime}`).toISOString();
+
+      let finalClientId = null;
+      if (!publicMode) {
+        const { data: { user } } = await supabase.auth.getUser();
+        finalClientId = user?.id;
+      }
+
       const duration = selectedService.duration_minutes || 30;
       const endTime = moment(startTime).add(duration, 'minutes').toISOString();
 
       const { error } = await supabase.from('slots').insert([{
-        salon_id: id,
+        salon_id: salon.id,
         professional_id: selectedProfessional.id,
         service_id: selectedService.id,
-        client_id: user.id,
+        client_id: finalClientId,
+        client_name: clientData.name.trim(),
+        client_phone: clientData.phone.trim(),
         start_time: startTime,
         end_time: endTime,
-        client_name: user.user_metadata?.full_name || "Cliente",
         status: 'confirmed'
       }]);
 
       if (error) throw error;
-
-      alert("Agendamento realizado com sucesso!");
-      navigate('/agendamento-cliente'); // Ajuste para a rota de sucesso ou meus agendamentos
-    } catch (err) {
-      alert("Erro ao agendar: " + err.message);
-    }
+      setStep(4);
+    } catch (err) { alert(err.message); }
   };
 
-  if (loading) return <div style={{ padding: '50px', textAlign: 'center' }}>Carregando opções...</div>;
+  if (loading) return (
+    <div style={{ backgroundColor: COLORS.offWhite, minHeight: '100vh' }}>
+      {!publicMode && <ClientHeader />}
+      <div style={styles.center}>Carregando...</div>
+    </div>
+  );
+
+  const isFormValid = clientData.name.trim().length > 2 && clientData.phone.length >= 14;
 
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: COLORS.offWhite, padding: '20px' }}>
-      <div style={{ maxWidth: '600px', margin: '0 auto' }}>
-        
-        <button onClick={() => navigate(-1)} style={styles.backBtn}>← Voltar</button>
-
-        <div style={styles.salonHeader}>
-          <h1 style={{ margin: '0 0 5px 0', fontSize: '22px' }}>{salon?.name}</h1>
-          <p style={{ margin: 0, color: '#666', fontSize: '13px' }}>📍 {salon?.address}</p>
-        </div>
-
-        {/* SERVIÇO */}
-        <section style={{ marginBottom: '25px' }}>
-          <h2 style={styles.sectionTitle}>1. Escolha o Serviço</h2>
-          <div style={{ display: 'grid', gap: '10px' }}>
-            {services.map(s => (
-              <div 
-                key={s.id}
-                onClick={() => setSelectedService(s)}
-                style={{
-                  ...styles.card,
-                  border: `2px solid ${selectedService?.id === s.id ? COLORS.sageGreen : 'transparent'}`,
-                }}
-              >
-                <div>
-                  <div style={{ fontWeight: '600' }}>{s.name}</div>
-                  <div style={{ fontSize: '12px', color: '#888' }}>{s.duration_minutes} min</div>
-                </div>
-                <div style={{ fontWeight: 'bold', color: COLORS.sageGreen }}>R$ {Number(s.price).toFixed(2)}</div>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        {/* PROFISSIONAL */}
-        {selectedService && (
-          <section style={{ marginBottom: '25px' }}>
-            <h2 style={styles.sectionTitle}>2. Com quem você quer agendar?</h2>
-            <div style={{ display: 'flex', gap: '12px', overflowX: 'auto', paddingBottom: '10px' }}>
-              {professionals.map(p => (
-                <div 
-                  key={p.id}
-                  onClick={() => setSelectedProfessional(p)}
-                  style={{
-                    ...styles.profCard,
-                    border: `2px solid ${selectedProfessional?.id === p.id ? COLORS.sageGreen : 'transparent'}`
-                  }}
-                >
-                  <div style={styles.avatar}>{p.name.charAt(0)}</div>
-                  <div style={{ fontSize: '12px', fontWeight: '500' }}>{p.name}</div>
+    <div style={{ backgroundColor: COLORS.offWhite, minHeight: '100vh' }}>
+      {!publicMode && <ClientHeader />}
+      <div style={styles.container}>
+        {step === 1 && (
+          <section>
+            <div style={styles.headerRow}>
+              {!publicMode && <button onClick={() => navigate(-1)} style={styles.backIconBtn}><ArrowLeft size={20}/></button>}
+              <h3 style={styles.sectionTitle}>Selecione o Serviço</h3>
+            </div>
+            <div style={styles.list}>
+              {services.map(s => (
+                <div key={s.id} onClick={() => { setSelectedService(s); setStep(2); }} style={styles.card}>
+                  <div>
+                    <div style={styles.bold}>{s.name}</div>
+                    <div style={styles.sub}>{s.duration_minutes} min</div>
+                  </div>
+                  <div style={styles.price}>R$ {Number(s.price).toFixed(2)}</div>
                 </div>
               ))}
             </div>
           </section>
         )}
 
-        {/* DATA E HORA */}
-        {selectedProfessional && (
-          <section style={{ marginBottom: '40px' }}>
-            <h2 style={styles.sectionTitle}>3. Escolha o Horário</h2>
-            <input 
-              type="date" 
-              min={moment().format('YYYY-MM-DD')}
-              value={selectedDate}
-              onChange={(e) => { setSelectedDate(e.target.value); setSelectedTime(null); }}
-              style={styles.dateInput}
-            />
-            <div style={styles.timeGrid}>
-              {availableSlots.length > 0 ? availableSlots.map(time => (
-                <div 
-                  key={time}
-                  onClick={() => setSelectedTime(time)}
-                  style={{
-                    ...styles.timeSlot,
-                    backgroundColor: selectedTime === time ? COLORS.sageGreen : COLORS.white,
-                    color: selectedTime === time ? 'white' : COLORS.deepCharcoal,
-                    borderColor: selectedTime === time ? COLORS.sageGreen : COLORS.warmSand
-                  }}
-                >
-                  {time}
+        {step === 2 && (
+          <section>
+            <button onClick={() => setStep(1)} style={styles.backBtn}>← Voltar aos serviços</button>
+            <h3 style={styles.sectionTitle}>Com quem e quando?</h3>
+            <div style={styles.profRow}>
+              {professionals.map(p => (
+                <div key={p.id} onClick={() => setSelectedProfessional(p)} style={{...styles.profCard, borderColor: selectedProfessional?.id === p.id ? COLORS.sageGreen : '#eee'}}>
+                  <div style={styles.avatar}>{p.name[0]}</div>
+                  <div style={styles.sub}>{p.name}</div>
                 </div>
-              )) : <p style={{ fontSize: '13px', color: '#999' }}>Nenhum horário disponível para este dia.</p>}
+              ))}
+            </div>
+            <input type="date" value={selectedDate} min={moment().format('YYYY-MM-DD')} onChange={e => setSelectedDate(e.target.value)} style={styles.input} />
+            <div style={styles.timeGrid}>
+              {availableSlots.map(t => (
+                <button key={t} onClick={() => { setSelectedTime(t); setStep(3); }} style={styles.timeBtn}>{t}</button>
+              ))}
             </div>
           </section>
         )}
 
-        {selectedTime && (
-          <button onClick={handleConfirmBooking} style={styles.confirmBtn}>
-            Confirmar para {moment(selectedDate).format('DD/MM')} às {selectedTime}
-          </button>
+        {step === 3 && (
+          <section style={styles.confirmCard}>
+            <h3 style={styles.sectionTitle}>Finalizar Agendamento</h3>
+            <div style={styles.summaryBox}>
+              <div style={{marginBottom: '8px'}}><strong>{selectedService.name}</strong></div>
+              <div style={styles.sub}>Profissional: {selectedProfessional.name}</div>
+              <div style={styles.sub}>📅 {moment(selectedDate).format('DD/MM/YYYY')} às {selectedTime}</div>
+            </div>
+
+            <label style={styles.label}>Seu Nome *</label>
+            <input 
+              placeholder="Digite seu nome completo" 
+              value={clientData.name} 
+              onChange={e => setClientData({...clientData, name: e.target.value})} 
+              style={styles.input} 
+            />
+
+            <label style={styles.label}>WhatsApp com DDD *</label>
+            <input 
+              placeholder="(11) 99999-9999" 
+              type="tel"
+              value={clientData.phone} 
+              onChange={e => setClientData({
+                ...clientData, 
+                phone: formatPhone(e.target.value)
+              })} 
+              style={styles.input} 
+              maxLength={15}
+            />
+
+            <button 
+              onClick={handleBooking} 
+              disabled={!isFormValid}
+              style={{
+                ...styles.mainBtn,
+                backgroundColor: isFormValid ? COLORS.deepCharcoal : '#ccc',
+                cursor: isFormValid ? 'pointer' : 'not-allowed'
+              }}
+            >
+              Confirmar Agendamento
+            </button>
+            
+            <button onClick={() => setStep(2)} style={styles.secondaryBtn}>
+              Alterar data ou horário
+            </button>
+          </section>
+        )}
+
+        {step === 4 && (
+          <div style={styles.center}>
+            <CheckCircle size={60} color={COLORS.sageGreen} />
+            <h2 style={{marginTop: '20px', color: COLORS.deepCharcoal}}>Agendado com sucesso!</h2>
+            <p style={{color: '#666', marginBottom: '30px'}}>O profissional já recebeu seu pedido.</p>
+            <button onClick={() => navigate('/meus-agendamentos')} style={styles.mainBtn}>Ver Meus Agendamentos</button>
+          </div>
         )}
       </div>
     </div>
   );
-};
+}
 
 const styles = {
-  backBtn: { marginBottom: '20px', background: 'none', border: 'none', color: COLORS.deepCharcoal, cursor: 'pointer', fontSize: '14px' },
-  salonHeader: { backgroundColor: '#fff', padding: '20px', borderRadius: '16px', marginBottom: '25px', border: `1px solid ${COLORS.warmSand}` },
-  sectionTitle: { fontSize: '16px', fontWeight: '700', marginBottom: '12px', color: COLORS.deepCharcoal },
-  card: { padding: '15px', backgroundColor: '#fff', borderRadius: '12px', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', transition: '0.2s' },
-  profCard: { minWidth: '80px', padding: '12px', backgroundColor: '#fff', borderRadius: '12px', cursor: 'pointer', textAlign: 'center' },
-  avatar: { width: '35px', height: '35px', backgroundColor: COLORS.warmSand, borderRadius: '50%', margin: '0 auto 8px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', color: COLORS.deepCharcoal },
-  dateInput: { width: '100%', padding: '12px', borderRadius: '8px', border: `1px solid ${COLORS.warmSand}`, marginBottom: '20px', fontFamily: 'inherit' },
-  timeGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(80px, 1fr))', gap: '8px' },
-  timeSlot: { padding: '10px', textAlign: 'center', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', border: '1px solid', transition: '0.2s' },
-  confirmBtn: { width: '100%', padding: '18px', backgroundColor: COLORS.deepCharcoal, color: 'white', border: 'none', borderRadius: '12px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }
+  container: { maxWidth: '500px', margin: '0 auto', padding: '0 20px 40px' },
+  center: { textAlign: 'center', padding: '50px', color: '#666' },
+  sectionTitle: { fontSize: '1.2rem', marginBottom: '20px', color: COLORS.deepCharcoal, fontWeight: '700' },
+  headerRow: { display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' },
+  list: { display: 'grid', gap: '12px' },
+  card: { padding: '18px', backgroundColor: 'white', borderRadius: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.04)', border: '1px solid #f0f0f0' },
+  bold: { fontWeight: '700', color: COLORS.deepCharcoal },
+  sub: { fontSize: '0.85rem', color: '#888' },
+  price: { color: COLORS.sageGreen, fontWeight: '800' },
+  profRow: { display: 'flex', gap: '10px', marginBottom: '20px', overflowX: 'auto', padding: '5px' },
+  profCard: { padding: '15px', backgroundColor: 'white', borderRadius: '12px', border: '2px solid', minWidth: '85px', textAlign: 'center', cursor: 'pointer' },
+  avatar: { width: '40px', height: '40px', borderRadius: '50%', backgroundColor: COLORS.warmSand, margin: '0 auto 8px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' },
+  label: { display: 'block', fontSize: '0.85rem', fontWeight: '600', color: '#666', marginBottom: '5px', marginLeft: '4px' },
+  input: { width: '100%', padding: '14px', borderRadius: '12px', border: '1px solid #ddd', marginBottom: '15px', boxSizing: 'border-box' },
+  timeGrid: { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px' },
+  timeBtn: { padding: '12px 5px', borderRadius: '10px', border: '1px solid #eee', cursor: 'pointer', fontWeight: '600' },
+  mainBtn: { width: '100%', padding: '16px', color: 'white', border: 'none', borderRadius: '12px', fontWeight: 'bold', cursor: 'pointer', fontSize: '1rem', transition: '0.2s' },
+  secondaryBtn: { width: '100%', padding: '12px', background: 'none', border: 'none', color: '#888', cursor: 'pointer', marginTop: '10px' },
+  backBtn: { background: 'none', border: 'none', color: '#666', cursor: 'pointer', marginBottom: '15px' },
+  backIconBtn: { background: 'none', border: 'none', cursor: 'pointer' },
+  summaryBox: { backgroundColor: 'white', padding: '20px', borderRadius: '16px', marginBottom: '20px', border: '1px solid #eee', boxShadow: '0 2px 6px rgba(0,0,0,0.02)' }
 };
-
-export default SalonBooking;
