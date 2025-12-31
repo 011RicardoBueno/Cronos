@@ -14,7 +14,7 @@ import Configuracoes from '../pages/configuracoes/Configuracoes';
 import Explorer from '../pages/client/Explorer'; 
 import SalonBooking from '../pages/client/SalonBooking';
 import MyAppointments from '../pages/client/MyAppointments';
-import PublicBookingPage from '../pages/public/PublicBookingPage';
+import PublicBookingPage from '../pages/public/PublicBookingPage'; // <-- Verifique se este arquivo existe neste caminho
 import Clients from '../pages/admin/Clients';
 import Financeiro from '../pages/financeiro/Financeiro';
 
@@ -22,54 +22,66 @@ export const AppRoutes = () => {
   const { session, loading: authLoading, user } = useAuth();
   const { loading: salonLoading, needsSetup } = useSalon();
 
+  // 1. Tela de Carregamento
   if (authLoading || salonLoading) {
     return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
-        Carregando...
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', fontFamily: 'sans-serif' }}>
+        <p>Carregando...</p>
       </div>
     );
   }
 
   return (
     <Routes>
-      {/* 1. ROTAS PÚBLICAS (Sempre acessíveis) */}
+      {/* --- ROTAS PÚBLICAS --- */}
+      {/* Se já estiver logado, não faz sentido ver a tela de login, manda para a Home */}
+      <Route path="/login" element={!session ? <Login /> : <Navigate to="/" replace />} />
       <Route path="/p/:slug" element={<PublicBookingPage />} />
-      <Route path="/login" element={<Login />} />
 
-      {/* 2. PROTEÇÃO DE ROTAS LOGADAS */}
+      {/* --- PROTEÇÃO: NÃO LOGADO --- */}
       {!session ? (
-        // Se não está logado e tenta acessar qualquer coisa que não seja público, vai pro Login
         <Route path="*" element={<Navigate to="/login" replace />} />
       ) : (
-        // USUÁRIO LOGADO
+        /* --- USUÁRIO LOGADO --- */
         <>
-          {needsSetup ? (
-            <Route path="*" element={<Navigate to="/setup" replace />} />
-          ) : (
+          {/* Se for ADMIN e precisar de SETUP, fica preso no /setup */}
+          {needsSetup && user?.user_metadata?.role === 'admin' ? (
             <>
-              {/* Rotas Comuns ou de Admin */}
-              <Route path="/" element={user?.user_metadata?.role === 'client' ? <Navigate to="/agendamento-cliente" /> : <Dashboard />} />
+              <Route path="/setup" element={<SalonSetup />} />
+              <Route path="*" element={<Navigate to="/setup" replace />} />
+            </>
+          ) : (
+            /* --- ROTAS DO SISTEMA (LOGADO E CONFIGURADO) --- */
+            <>
+              {/* Home redireciona conforme o perfil */}
+              <Route path="/" element={
+                user?.user_metadata?.role === 'client' 
+                ? <Navigate to="/agendamento-cliente" replace /> 
+                : <Dashboard />
+              } />
+
+              {/* Rotas Administrativas */}
               <Route path="/agenda" element={<Agenda />} />
               <Route path="/servicos" element={<Servicos />} />
               <Route path="/profissionais" element={<Profissionais />} />
               <Route path="/configuracoes" element={<Configuracoes />} />
-              <Route path="/meus-agendamentos" element={<MyAppointments />} />
               <Route path="/admin/clientes" element={<Clients />} />
               <Route path="/financeiro" element={<Financeiro />} />
 
-              {/* Rotas exclusivas de Cliente */}
+              {/* Rotas do Cliente */}
               <Route path="/agendamento-cliente" element={<Explorer />} />
               <Route path="/agendar/:id" element={<SalonBooking />} />
+              <Route path="/meus-agendamentos" element={<MyAppointments />} />
+
+              {/* Se tentar acessar /setup já estando configurado, volta pra Home */}
+              <Route path="/setup" element={<Navigate to="/" replace />} />
+              
+              {/* Fallback para rotas inexistentes dentro do login */}
+              <Route path="*" element={<Navigate to="/" replace />} />
             </>
           )}
-          
-          {/* Rota de Setup */}
-          <Route path="/setup" element={<SalonSetup />} />
         </>
       )}
-
-      {/* Fallback Geral */}
-      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 };

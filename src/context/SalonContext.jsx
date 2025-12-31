@@ -14,7 +14,6 @@ export const SalonProvider = ({ children }) => {
 
   const { user } = useAuth();
 
-  // Usamos useCallback para que a função possa ser usada em useEffects sem loops
   const loadSalonData = useCallback(async () => {
     try {
       setLoading(true);
@@ -30,7 +29,6 @@ export const SalonProvider = ({ children }) => {
 
       const userRole = user.user_metadata?.role;
       
-      // Se for cliente, não carregamos dados de gerência de salão
       if (userRole === 'client') {
         setSalon(null);
         setNeedsSetup(false);
@@ -38,7 +36,6 @@ export const SalonProvider = ({ children }) => {
         return;
       }
 
-      // Busca o salão vinculado ao dono (owner_id)
       const { data: salonsData, error: salonsError } = await supabase
         .from('salons')
         .select('*')
@@ -55,7 +52,6 @@ export const SalonProvider = ({ children }) => {
 
       const salonId = salonsData.id;
       
-      // Carregamento paralelo para performance
       const [professionalsRes, servicesRes] = await Promise.all([
         supabase.from('professionals').select('*').eq('salon_id', salonId).order('name'),
         supabase.from('services').select('*').eq('salon_id', salonId).order('name')
@@ -80,40 +76,60 @@ export const SalonProvider = ({ children }) => {
   const createOrUpdateSalon = async (salonData) => {
     try {
       setLoading(true);
+      setError(null);
       if (!user) throw new Error('Usuário não autenticado');
 
-      // Sanitização de dados para o Postgres
       const cleanData = {
         name: salonData.name,
         phone: salonData.phone,
         address: salonData.address,
-        opening_time: salonData.opening_time,
-        closing_time: salonData.closing_time,
+        owner_id: user.id,
+        cep: salonData.cep || null,
+        slug: salonData.slug || null,
+        opening_time: salonData.opening_time || '08:00',
+        closing_time: salonData.closing_time || '19:00',
       };
 
       if (salon?.id) {
-        const { data, error } = await supabase
+        // UPDATE
+        const { data, error: updateError } = await supabase
           .from('salons')
           .update(cleanData)
           .eq('id', salon.id)
           .select()
           .single();
 
-        if (error) throw error;
+        if (updateError) throw updateError;
+        
         setSalon(data);
         return data;
       } else {
-        const { data: newSalon, error: salonError } = await supabase
+        // INSERT
+        const { data: newSalon, error: insertError } = await supabase
           .from('salons')
-          .insert([{ ...cleanData, owner_id: user.id }])
+          .insert([cleanData])
           .select()
           .single();
 
-        if (salonError) throw salonError;
+        if (insertError) {
+          // Tratamento amigável para link duplicado
+          if (insertError.code === '23505') throw new Error('Este link (URL) já está em uso por outro salão.');
+          throw insertError;
+        }
+        
+        // --- PATCH DE SINCRONIZAÇÃO IMEDIATA ---
+        setSalon(newSalon);
+        setNeedsSetup(false); // Libera o acesso ao dashboard instantaneamente
+        setError(null);
+        // ---------------------------------------
+
+        // Carrega profissionais e serviços (que virão vazios, mas inicializa o estado)
         await loadSalonData(); 
+        
         return newSalon;
       }
     } catch (err) {
+      console.error("Erro detalhado no salvamento:", err);
       setError(err.message);
       throw err;
     } finally {
@@ -130,7 +146,7 @@ export const SalonProvider = ({ children }) => {
     services, 
     setServices, 
     professionals,
-    setProfessionals, // Adicionado para permitir atualizações locais rápidas
+    setProfessionals,
     loading, 
     error, 
     needsSetup, 

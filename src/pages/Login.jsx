@@ -6,6 +6,8 @@ import { COLORS } from '../constants/dashboard';
 const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [fullName, setFullName] = useState('');
+  const [phone, setPhone] = useState('');
   const [loading, setLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -13,65 +15,77 @@ const Login = () => {
   const [role, setRole] = useState('client'); // 'client' ou 'admin'
   const navigate = useNavigate();
 
+  const formatPhone = (value) => {
+    if (!value) return "";
+    const cleanValue = value.replace(/\D/g, "");
+    if (cleanValue.length <= 11) {
+      return cleanValue
+        .replace(/^(\d{2})(\d)/g, "($1) $2")
+        .replace(/(\d{5})(\d)/, "$1-$2");
+    }
+    return cleanValue.substring(0, 11).replace(/^(\d{2})(\d{5})(\d{4})/, "($1) $2-$3");
+  };
+
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
         const userRole = session.user?.user_metadata?.role;
-        if (userRole === 'admin') {
-          navigate('/');
-        } else {
-          navigate('/agendamento-cliente');
-        }
+        if (userRole === 'admin') navigate('/');
+        else navigate('/agendamento-cliente');
       }
     });
   }, [navigate]);
 
   const handleSubmit = async (e) => {
+    e.preventDefault();
     if (isSubmitting) return;
     setIsSubmitting(true);
-    e.preventDefault();
     setError('');
     setLoading(true);
 
     try {
-if (mode === 'signup') {
-        const { data, error } = await supabase.auth.signUp({
-          email,
+      if (mode === 'signup') {
+        if (!fullName.trim()) throw new Error('O nome é obrigatório.');
+        const cleanPhone = phone.replace(/\D/g, '');
+        if (cleanPhone.length < 10) throw new Error('Insira um telefone válido.');
+
+        const finalEmail = email.trim() || `${cleanPhone}@fluxo.com`;
+
+        const { data, error: signUpError } = await supabase.auth.signUp({
+          email: finalEmail,
           password,
           options: {
-            data: { role: role },
-            // ALTERAÇÃO: Redireciona para a raiz. 
-            // O useEffect do Login decidirá para onde ir com base na role.
-            emailRedirectTo: `${window.location.origin}/` 
+            data: { 
+              role: role,
+              full_name: fullName.trim(),
+              phone: cleanPhone,
+              is_temporary_email: !email.trim()
+            }
           }
         });
 
-        if (error) throw error;
-        
-        alert('Conta criada com sucesso! Você já pode acessar o sistema.');
-        setMode('login');
-        setEmail('');
-        setPassword('');
+        if (signUpError) throw signUpError;
+        if (role === 'admin') navigate('/');
+        else navigate('/agendamento-cliente');
         
       } else {
-        // Login
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email,
+        let loginIdentifier = email.trim();
+        if (/^\d+$/.test(loginIdentifier.replace(/\D/g, ''))) {
+            loginIdentifier = `${loginIdentifier.replace(/\D/g, '')}@fluxo.com`;
+        }
+
+        const { data, error: signInError } = await supabase.auth.signInWithPassword({
+          email: loginIdentifier,
           password,
         });
 
-        if (error) throw error;
-        
-        // Redirecionamento baseado na role após login
+        if (signInError) throw signInError;
         const userRole = data.user?.user_metadata?.role;
-        if (userRole === 'admin') {
-          navigate('/');
-        } else {
-          navigate('/agendamento-cliente');
-        }
+        if (userRole === 'admin') navigate('/');
+        else navigate('/agendamento-cliente');
       }
     } catch (err) {
-      setError(err.message);
+      setError(err.message === 'User already registered' ? 'Este telefone ou e-mail já está cadastrado.' : err.message);
     } finally {
       setIsSubmitting(false);
       setLoading(false);
@@ -79,115 +93,48 @@ if (mode === 'signup') {
   };
 
   return (
-    <div style={{
-      minHeight: '100vh',
-      backgroundColor: COLORS.offWhite,
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      padding: '20px'
-    }}>
-      <div style={{
-        backgroundColor: COLORS.white,
-        borderRadius: '16px',
-        boxShadow: '0 10px 40px rgba(0,0,0,0.1)',
-        padding: '40px',
-        width: '100%',
-        maxWidth: '440px'
-      }}>
-        {/* Header */}
-        <div style={{ textAlign: 'center', marginBottom: '40px' }}>
-          <h1 style={{
-            color: COLORS.deepCharcoal,
-            marginBottom: '10px',
-            fontSize: '32px',
-            fontWeight: '700'
-          }}>
-            Cronos
-          </h1>
-          <p style={{
-            color: '#666',
-            fontSize: '16px'
-          }}>
-            {mode === 'signup' ? 'Crie sua conta' : 'Acesse sua conta'}
-          </p>
+    <div style={styles.container}>
+      <div style={styles.card}>
+        <div style={{ textAlign: 'center', marginBottom: '32px' }}>
+          <h1 style={styles.title}>Fluxo</h1>
+          <p style={styles.subtitle}>Olá, seja bem-vindo!</p>
         </div>
 
-        {/* Botões de Modo */}
-        <div style={{
-          display: 'flex',
-          marginBottom: '32px',
-          backgroundColor: COLORS.warmSand,
-          borderRadius: '8px',
-          padding: '4px'
-        }}>
+        <div style={styles.tabContainer}>
           <button
             type="button"
-            onClick={() => setMode('login')}
-            style={{
-              flex: 1,
-              padding: '12px',
+            onClick={() => { setMode('login'); setError(''); }}
+            style={{ ...styles.tabButton, 
               backgroundColor: mode === 'login' ? COLORS.white : 'transparent',
-              border: 'none',
-              borderRadius: '6px',
-              color: mode === 'login' ? COLORS.deepCharcoal : '#666',
-              fontWeight: mode === 'login' ? '600' : '400',
-              fontSize: '14px',
-              cursor: 'pointer',
-              transition: 'all 0.2s'
+              fontWeight: mode === 'login' ? '700' : '400'
             }}
           >
             Entrar
           </button>
           <button
             type="button"
-            onClick={() => setMode('signup')}
-            style={{
-              flex: 1,
-              padding: '12px',
+            onClick={() => { setMode('signup'); setError(''); }}
+            style={{ ...styles.tabButton, 
               backgroundColor: mode === 'signup' ? COLORS.white : 'transparent',
-              border: 'none',
-              borderRadius: '6px',
-              color: mode === 'signup' ? COLORS.deepCharcoal : '#666',
-              fontWeight: mode === 'signup' ? '600' : '400',
-              fontSize: '14px',
-              cursor: 'pointer',
-              transition: 'all 0.2s'
+              fontWeight: mode === 'signup' ? '700' : '400'
             }}
           >
             Cadastrar
           </button>
         </div>
 
-        {/* Formulário */}
         <form onSubmit={handleSubmit}>
-          {/* Seletor de Tipo de Usuário - Apenas no Cadastro */}
           {mode === 'signup' && (
             <div style={{ marginBottom: '24px' }}>
-              <label style={{
-                display: 'block',
-                marginBottom: '12px',
-                color: COLORS.deepCharcoal,
-                fontWeight: '600',
-                fontSize: '14px'
-              }}>
-                Tipo de conta
-              </label>
-              <div style={{ display: 'flex', gap: '10px' }}>
+              <label style={styles.label}>Como deseja usar o Fluxo?</label>
+              <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
                 <button
                   type="button"
                   onClick={() => setRole('client')}
-                  style={{
-                    flex: 1,
-                    padding: '10px',
-                    borderRadius: '8px',
-                    cursor: 'pointer',
-                    fontSize: '13px',
-                    border: `2px solid ${role === 'client' ? COLORS.sageGreen : COLORS.warmSand}`,
-                    backgroundColor: role === 'client' ? '#F4F7F0' : COLORS.white,
-                    color: COLORS.deepCharcoal,
-                    fontWeight: role === 'client' ? '700' : '400',
-                    transition: 'all 0.2s'
+                  style={{ ...styles.roleOption, 
+                    borderColor: role === 'client' ? COLORS.sageGreen : '#E5E7EB',
+                    backgroundColor: role === 'client' ? '#F0FDF4' : 'transparent',
+                    color: role === 'client' ? '#166534' : COLORS.deepCharcoal
                   }}
                 >
                   Sou Cliente
@@ -195,143 +142,109 @@ if (mode === 'signup') {
                 <button
                   type="button"
                   onClick={() => setRole('admin')}
-                  style={{
-                    flex: 1,
-                    padding: '10px',
-                    borderRadius: '8px',
-                    cursor: 'pointer',
-                    fontSize: '13px',
-                    border: `2px solid ${role === 'admin' ? COLORS.sageGreen : COLORS.warmSand}`,
-                    backgroundColor: role === 'admin' ? '#F4F7F0' : COLORS.white,
-                    color: COLORS.deepCharcoal,
-                    fontWeight: role === 'admin' ? '700' : '400',
-                    transition: 'all 0.2s'
+                  style={{ ...styles.roleOption, 
+                    borderColor: role === 'admin' ? COLORS.sageGreen : '#E5E7EB',
+                    backgroundColor: role === 'admin' ? '#F0FDF4' : 'transparent',
+                    color: role === 'admin' ? '#166534' : COLORS.deepCharcoal
                   }}
                 >
                   Sou um Salão
                 </button>
               </div>
+              
+              <div style={styles.roleInfoBox}>
+                 <p style={styles.infoText}>
+                   {role === 'client' 
+                     ? "Você poderá buscar salões próximos e agendar seus horários online."
+                     : "Você terá acesso a ferramentas de gestão, agenda e profissionais."
+                   }
+                 </p>
+              </div>
             </div>
           )}
 
-          <div style={{ marginBottom: '24px' }}>
-            <label style={{
-              display: 'block',
-              marginBottom: '8px',
-              color: COLORS.deepCharcoal,
-              fontWeight: '500',
-              fontSize: '14px'
-            }}>
-              Email
+          {mode === 'signup' && (
+            <div style={{ marginBottom: '20px' }}>
+              <label style={styles.label}>Nome Completo *</label>
+              <input
+                type="text"
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                placeholder="Ex: João Silva"
+                style={styles.input}
+                required
+              />
+            </div>
+          )}
+
+          <div style={{ marginBottom: '20px' }}>
+            <label style={styles.label}>
+              {mode === 'signup' ? 'WhatsApp / Telefone *' : 'Telefone ou E-mail'}
             </label>
             <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="seu@email.com"
+              type="text"
+              value={mode === 'signup' ? phone : email}
+              onChange={(e) => mode === 'signup' ? setPhone(formatPhone(e.target.value)) : setEmail(e.target.value)}
+              placeholder={mode === 'signup' ? '(00) 00000-0000' : 'Seu telefone ou e-mail'}
+              style={styles.input}
               required
-              style={{
-                width: '100%',
-                padding: '14px 16px',
-                border: `1px solid ${COLORS.dustyRose}`,
-                borderRadius: '8px',
-                fontSize: '16px',
-                color: COLORS.deepCharcoal,
-                backgroundColor: COLORS.offWhite,
-                boxSizing: 'border-box'
-              }}
             />
           </div>
 
-          <div style={{ marginBottom: '32px' }}>
-            <label style={{
-              display: 'block',
-              marginBottom: '8px',
-              color: COLORS.deepCharcoal,
-              fontWeight: '500',
-              fontSize: '14px'
-            }}>
-              Senha
-            </label>
+          <div style={{ marginBottom: '20px' }}>
+            <label style={styles.label}>Senha *</label>
             <input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
+              style={styles.input}
               required
-              style={{
-                width: '100%',
-                padding: '14px 16px',
-                border: `1px solid ${COLORS.dustyRose}`,
-                borderRadius: '8px',
-                fontSize: '16px',
-                color: COLORS.deepCharcoal,
-                backgroundColor: COLORS.offWhite,
-                boxSizing: 'border-box'
-              }}
             />
           </div>
 
-          {error && (
-            <div style={{
-              backgroundColor: '#fef2f2',
-              color: '#dc2626',
-              padding: '12px 16px',
-              borderRadius: '8px',
-              marginBottom: '24px',
-              fontSize: '14px',
-              border: '1px solid #fee2e2'
-            }}>
-              {error}
+          {mode === 'signup' && (
+            <div style={{ marginBottom: '24px' }}>
+              <label style={styles.label}>E-mail <span style={{ fontWeight: '400', color: '#9CA3AF' }}>(Opcional)</span></label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="Para receber seus comprovantes"
+                style={styles.input}
+              />
             </div>
           )}
 
-          {/* Botão Principal */}
+          {error && <div style={styles.errorBox}>{error}</div>}
+
           <button
             type="submit"
-            disabled={loading || isSubmitting}
-            style={{
-              width: '100%',
-              padding: '16px',
-              backgroundColor: COLORS.sageGreen,
-              color: COLORS.white,
-              border: 'none',
-              borderRadius: '8px',
-              fontSize: '16px',
-              fontWeight: '600',
-              cursor: loading ? 'not-allowed' : 'pointer',
-              opacity: loading ? 0.7 : 1,
-              transition: 'background-color 0.2s',
-              marginBottom: '20px'
-            }}
+            disabled={loading}
+            style={{ ...styles.submitButton, opacity: loading ? 0.7 : 1 }}
           >
-            {loading ? 'Processando...' : (mode === 'signup' ? 'Criar Minha Conta' : 'Entrar na Conta')}
+            {loading ? 'Processando...' : (mode === 'signup' ? 'Criar minha conta' : 'Entrar na conta')}
           </button>
-
-          {/* Mensagem de ajuda informativa */}
-          {mode === 'signup' && (
-            <div style={{
-              backgroundColor: '#F8F9FA',
-              border: `1px solid ${COLORS.warmSand}`,
-              color: COLORS.deepCharcoal,
-              padding: '12px 16px',
-              borderRadius: '8px',
-              fontSize: '13px',
-              marginTop: '20px',
-              lineHeight: '1.4'
-            }}>
-              <p style={{ margin: 0 }}>
-                <strong>{role === 'admin' ? 'Perfil Salão:' : 'Perfil Cliente:'}</strong> 
-                {role === 'admin' 
-                  ? ' Você terá acesso a ferramentas de gestão, agenda e profissionais.' 
-                  : ' Você poderá buscar salões próximos e agendar seus horários online.'}
-              </p>
-            </div>
-          )}
         </form>
       </div>
     </div>
   );
+};
+
+const styles = {
+  container: { minHeight: '100vh', backgroundColor: COLORS.offWhite, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' },
+  card: { backgroundColor: COLORS.white, borderRadius: '24px', padding: '40px', width: '100%', maxWidth: '450px', boxShadow: '0 20px 50px rgba(0,0,0,0.08)' },
+  title: { fontSize: '32px', fontWeight: '800', color: COLORS.deepCharcoal, marginBottom: '8px' },
+  subtitle: { fontSize: '18px', color: '#6B7280', marginBottom: '0' },
+  tabContainer: { display: 'flex', backgroundColor: '#F3F4F6', borderRadius: '12px', padding: '4px', marginBottom: '32px' },
+  tabButton: { flex: 1, padding: '12px', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', transition: 'all 0.2s', color: COLORS.deepCharcoal },
+  label: { display: 'block', fontSize: '14px', fontWeight: '700', color: COLORS.deepCharcoal, marginBottom: '8px' },
+  input: { width: '100%', padding: '14px 16px', borderRadius: '12px', border: '1px solid #E5E7EB', fontSize: '16px', outline: 'none', transition: 'border-color 0.2s', boxSizing: 'border-box' },
+  roleOption: { flex: 1, padding: '12px', border: '2px solid', borderRadius: '12px', cursor: 'pointer', fontSize: '14px', textAlign: 'center', transition: 'all 0.2s', fontWeight: '600' },
+  roleInfoBox: { padding: '12px 16px', backgroundColor: '#F9FAFB', borderRadius: '12px', border: '1px solid #F3F4F6', minHeight: '44px', display: 'flex', alignItems: 'center' },
+  infoText: { margin: 0, fontSize: '13px', color: '#4B5563', lineHeight: '1.4', textAlign: 'center', width: '100%' },
+  submitButton: { width: '100%', padding: '16px', backgroundColor: COLORS.sageGreen, color: 'white', border: 'none', borderRadius: '12px', fontSize: '16px', fontWeight: '700', cursor: 'pointer', marginTop: '10px' },
+  errorBox: { padding: '12px', backgroundColor: '#FEF2F2', color: '#DC2626', borderRadius: '8px', fontSize: '14px', marginBottom: '20px', textAlign: 'center', border: '1px solid #FEE2E2' }
 };
 
 export default Login;
