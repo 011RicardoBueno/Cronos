@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from './AuthContext';
 
@@ -14,52 +14,55 @@ export const SalonProvider = ({ children }) => {
 
   const { user } = useAuth();
 
-const loadSalonData = async () => {
+  // Usamos useCallback para que a função possa ser usada em useEffects sem loops
+  const loadSalonData = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
       
       if (!user) {
+        setSalon(null);
+        setProfessionals([]);
+        setServices([]);
         setLoading(false);
         return;
       }
 
-      // GARANTIA: Se for cliente, limpa estados de salão e interrompe o setup
       const userRole = user.user_metadata?.role;
+      
+      // Se for cliente, não carregamos dados de gerência de salão
       if (userRole === 'client') {
         setSalon(null);
-        setNeedsSetup(false); // Impede a abertura do modal/página de setup
+        setNeedsSetup(false);
         setLoading(false);
         return;
       }
 
-      // Se chegou aqui, é admin...
-      console.log('Buscando dados para o dono do salão:', user.id);
-
-      // ALTERAÇÃO: Buscamos pela coluna 'owner_id' (ID do usuário)
-      // Certifique-se de que essa coluna existe na sua tabela 'salons' no Supabase
+      // Busca o salão vinculado ao dono (owner_id)
       const { data: salonsData, error: salonsError } = await supabase
         .from('salons')
         .select('*')
-        .eq('owner_id', user.id) // Busca vinculada ao ID do usuário
+        .eq('owner_id', user.id)
         .maybeSingle();
 
       if (salonsError) throw salonsError;
 
       if (!salonsData) {
-        console.log('Usuário admin não tem salão cadastrado');
         setNeedsSetup(true);
         setLoading(false);
         return;
       }
 
-      // Se encontrou salão, busca dados relacionados
       const salonId = salonsData.id;
       
+      // Carregamento paralelo para performance
       const [professionalsRes, servicesRes] = await Promise.all([
-        supabase.from('professionals').select('*').eq('salon_id', salonId),
-        supabase.from('services').select('*').eq('salon_id', salonId)
+        supabase.from('professionals').select('*').eq('salon_id', salonId).order('name'),
+        supabase.from('services').select('*').eq('salon_id', salonId).order('name')
       ]);
+
+      if (professionalsRes.error) throw professionalsRes.error;
+      if (servicesRes.error) throw servicesRes.error;
 
       setSalon(salonsData);
       setProfessionals(professionalsRes.data || []);
@@ -67,36 +70,31 @@ const loadSalonData = async () => {
       setNeedsSetup(false);
 
     } catch (err) {
-      console.error('Erro ao carregar dados do contexto:', err);
+      console.error('Erro no SalonContext:', err);
       setError(err.message);
-      // Se der erro de coluna inexistente, avisamos o dev
-      if (err.code === '42703') {
-        console.error("DICA: Adicione a coluna 'owner_id' (tipo UUID) na sua tabela 'salons' no Supabase.");
-      }
     } finally {
       setLoading(false);
     }
-  };
+  }, [user]);
 
   const createOrUpdateSalon = async (salonData) => {
     try {
       setLoading(true);
-      setError(null);
-      
       if (!user) throw new Error('Usuário não autenticado');
 
-      // Limpeza explícita dos dados para evitar enviar colunas que não existem (como o email)
+      // Sanitização de dados para o Postgres
       const cleanData = {
         name: salonData.name,
         phone: salonData.phone,
         address: salonData.address,
+        opening_time: salonData.opening_time,
+        closing_time: salonData.closing_time,
       };
 
-      // Se já tem salão, atualiza
       if (salon?.id) {
         const { data, error } = await supabase
           .from('salons')
-          .update(cleanData) // Enviando apenas os campos limpos
+          .update(cleanData)
           .eq('id', salon.id)
           .select()
           .single();
@@ -104,27 +102,14 @@ const loadSalonData = async () => {
         if (error) throw error;
         setSalon(data);
         return data;
-      } 
-      // Se não tem, cria novo vinculando ao owner_id
-      else {
-        const newSalonEntry = {
-          ...cleanData, // Usa os campos limpos (sem email)
-          owner_id: user.id,
-        };
-
-        console.log('Tentando inserir:', newSalonEntry);
-
+      } else {
         const { data: newSalon, error: salonError } = await supabase
           .from('salons')
-          .insert([newSalonEntry])
+          .insert([{ ...cleanData, owner_id: user.id }])
           .select()
           .single();
 
-        if (salonError) {
-          console.error('Erro detalhado do Supabase:', salonError);
-          throw salonError;
-        }
-
+        if (salonError) throw salonError;
         await loadSalonData(); 
         return newSalon;
       }
@@ -136,20 +121,21 @@ const loadSalonData = async () => {
     }
   };
 
-  const refreshSalon = () => loadSalonData();
-
   useEffect(() => {
-    if (user) {
-      loadSalonData();
-    } else {
-      setSalon(null);
-      setLoading(false);
-    }
-  }, [user]);
+    loadSalonData();
+  }, [loadSalonData]);
 
   const value = {
-    salon, services, setServices, professionals,
-    loading, error, needsSetup, createOrUpdateSalon, refreshSalon
+    salon, 
+    services, 
+    setServices, 
+    professionals,
+    setProfessionals, // Adicionado para permitir atualizações locais rápidas
+    loading, 
+    error, 
+    needsSetup, 
+    createOrUpdateSalon, 
+    refreshSalon: loadSalonData
   };
 
   return (

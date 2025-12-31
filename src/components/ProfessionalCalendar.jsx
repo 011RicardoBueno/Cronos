@@ -30,21 +30,27 @@ export default function ProfessionalCalendar({
   };
 
   const events = useMemo(() => {
-    return (slots || []).map(slot => ({
-      id: slot.id,
-      title: slot.client_name || slot.services?.name || "Agendamento",
-      start: new Date(slot.start_time || slot.time),
-      end: slot.end_time 
+    return (slots || []).map(slot => {
+      const start = new Date(slot.start_time || slot.time);
+      // Calcula fim: usa end_time do banco ou adiciona 30 min por padrão
+      const end = slot.end_time 
         ? new Date(slot.end_time) 
-        : new Date(new Date(slot.start_time || slot.time).getTime() + 30 * 60000),
-    })).filter(e => !isNaN(e.start.getTime()));
+        : new Date(start.getTime() + 30 * 60000);
+
+      return {
+        id: slot.id,
+        title: slot.client_name || slot.services?.name || "Agendamento",
+        start,
+        end,
+        raw: slot // Mantemos o objeto original para referência se necessário
+      };
+    }).filter(e => !isNaN(e.start.getTime()));
   }, [slots]);
 
   // Função para detectar colisão de horários
   const isSlotConflict = (start, end, excludeId) => {
     return events.some(event => {
       if (event.id === excludeId) return false;
-      // Lógica de colisão: (NovoInicio < EventoFim) E (NovoFim > EventoInicio)
       return start < event.end && end > event.start;
     });
   };
@@ -58,18 +64,19 @@ export default function ProfessionalCalendar({
       return;
     }
 
-    // 2. Validar se o evento original já passou (bloquear edição de histórico)
+    // 2. Validar se o evento original já passou
     if (event.start < now) {
       alert("Não é permitido mover agendamentos que já foram realizados.");
       return;
     }
 
-    // 3. Validar conflito de horário
+    // 3. Validar conflito
     if (isSlotConflict(start, end, event.id)) {
       alert("Conflito de agenda: Já existe um agendamento neste horário.");
       return;
     }
 
+    // Notificamos o componente pai enviando o novo start e end
     handleMoveSlot({
       slotId: event.id,
       newStart: start,
@@ -77,7 +84,6 @@ export default function ProfessionalCalendar({
     });
   }, [handleMoveSlot, events]);
 
-  // Estilização dinâmica
   const eventStyleGetter = (event) => {
     const isPast = event.start < new Date();
     return {
@@ -105,7 +111,6 @@ export default function ProfessionalCalendar({
         culture="pt-BR"
         onEventDrop={onEventDrop}
         onSelectEvent={(event) => {
-          // Também bloqueia deletar passado se quiser ser rigoroso
           if (event.start < new Date()) {
             alert("Para manter o histórico, agendamentos passados não podem ser removidos.");
             return;

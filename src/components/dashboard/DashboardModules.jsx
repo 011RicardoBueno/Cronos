@@ -2,13 +2,11 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Users, Calendar, Scissors, Settings } from 'lucide-react';
 import DashboardCard from './cards/DashboardCard';
-// Importamos direto da sua constante para garantir que nunca seja undefined
 import { COLORS } from '../../constants/dashboard';
 
 const DashboardModules = () => {
   const navigate = useNavigate();
 
-  // Usamos COLORS (importado) em vez de colors (vinda de props)
   const modules = [
     {
       title: "Agenda",
@@ -36,17 +34,12 @@ const DashboardModules = () => {
       description: "Dados do salão e horários",
       icon: <Settings size={24} />,
       path: "/configuracoes",
-      color: COLORS.warmBeige
+      color: COLORS.warmSand // Ajustado para usar uma cor da sua paleta consistente
     }
   ];
 
   return (
-    <div style={{ 
-      display: 'grid', 
-      gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', 
-      gap: '20px',
-      marginTop: '30px' 
-    }}>
+    <div style={styles.grid}>
       {modules.map((mod, index) => (
         <DashboardCard 
           key={index}
@@ -59,6 +52,16 @@ const DashboardModules = () => {
       ))}
     </div>
   );
+};
+
+const styles = {
+  grid: { 
+    display: 'grid', 
+    // Garante que em telas muito pequenas (mobile) os cards ocupem a largura toda
+    gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', 
+    gap: '20px',
+    marginTop: '10px' // Reduzi um pouco para alinhar melhor com o título da seção no Dashboard.jsx
+  }
 };
 
 export default DashboardModules;

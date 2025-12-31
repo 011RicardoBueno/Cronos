@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useSalon } from "../../context/SalonContext";
-import { supabase } from "../../lib/supabase"; 
+import { useProfessionalSlots } from "../../hooks/useProfessionalSlots"; // Importando o novo hook
+import { deleteSlot, updateSlotTime } from "../../services/supabaseService"; // Importando do service
 import ProfessionalCalendar from "../../components/ProfessionalCalendar";
 import BackButton from "../../components/ui/BackButton";
 import { COLORS } from "../../constants/dashboard";
@@ -8,44 +9,53 @@ import { COLORS } from "../../constants/dashboard";
 export default function Agenda() {
   const { salon, professionals } = useSalon();
   const [selectedProfId, setSelectedProfId] = useState("all");
-  const [slots, setSlots] = useState([]);
-  const [loading, setLoading] = useState(true);
+  
+  // Usando o nosso hook refatorado
+  const { 
+    slotsByProfessional, 
+    loadingSlots, 
+    loadProfessionalSlots, 
+    updateSlotsAfterDelete, 
+    updateSlotsAfterMove 
+  } = useProfessionalSlots();
 
-  const loadAgendaData = useCallback(async () => {
-    if (!professionals || professionals.length === 0) {
-      setLoading(false);
-      return;
-    }
+  const loadData = useCallback(async () => {
+    if (!professionals || professionals.length === 0) return;
     
-    setLoading(true);
-    try {
-      const { data, error } = await supabase
-        .from('slots')
-        .select('*, services(name)')
-        .in('professional_id', professionals.map(p => p.id));
+    // Exemplo: buscando slots do mês atual para evitar sobrecarga
+    const now = new Date();
+    const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString();
 
-      if (error) throw error;
-      setSlots(data || []);
-    } catch (err) {
-      console.error("Erro ao carregar agenda:", err);
-    } finally {
-      setLoading(false);
-    }
-  }, [professionals]);
+    await loadProfessionalSlots(professionals, firstDay, lastDay);
+  }, [professionals, loadProfessionalSlots]);
 
   useEffect(() => {
-    loadAgendaData();
-  }, [loadAgendaData]);
+    loadData();
+  }, [loadData]);
 
-  // Filtra os slots com base no profissional selecionado
-  const filteredSlots = selectedProfId === "all" 
-    ? slots 
-    : slots.filter(s => s.professional_id === selectedProfId);
-
-  // Filtra a lista de profissionais para exibir apenas o selecionado (ou todos)
   const displayedProfessionals = selectedProfId === "all"
     ? professionals
     : professionals.filter(p => p.id === selectedProfId);
+
+  const handleDelete = async (profId, slotId) => {
+    if(!window.confirm("Excluir agendamento?")) return;
+    try {
+      await deleteSlot(slotId);
+      updateSlotsAfterDelete(profId, slotId); // Atualiza UI instantaneamente
+    } catch (err) {
+      alert("Erro ao deletar slot");
+    }
+  };
+
+  const handleMove = async (profId, slotId, newStart) => {
+    try {
+      await updateSlotTime(slotId, newStart);
+      updateSlotsAfterMove(profId, slotId, newStart.toISOString()); // Atualiza UI instantaneamente
+    } catch (err) {
+      alert("Erro ao mover slot");
+    }
+  };
 
   return (
     <div style={{ backgroundColor: COLORS.offWhite, minHeight: "100vh", padding: "20px" }}>
@@ -57,7 +67,6 @@ export default function Agenda() {
             Agenda: {salon?.name || "Carregando..."}
           </h2>
           
-          {/* FILTRO DE PROFISSIONAL */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <label style={{ fontWeight: '500' }}>Filtrar por:</label>
             <select 
@@ -73,44 +82,29 @@ export default function Agenda() {
           </div>
         </div>
 
-        {loading ? (
-          <div style={{ textAlign: 'center', padding: '40px' }}>Carregando...</div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-            {displayedProfessionals?.map(pro => (
-              <div key={pro.id} style={{ 
-                backgroundColor: 'white', 
-                padding: '20px', 
-                borderRadius: '16px', 
-                boxShadow: '0 4px 12px rgba(0,0,0,0.05)' 
-              }}>
-                <h3 style={{ marginBottom: '15px', color: COLORS.deepCharcoal }}>
-                  Agenda de {pro.name}
-                </h3>
-                <ProfessionalCalendar
-                  slots={slots.filter(s => s.professional_id === pro.id)}
-                  handleDeleteSlot={async (id) => {
-                    if(!window.confirm("Excluir agendamento?")) return;
-                    await supabase.from('slots').delete().eq('id', id);
-                    loadAgendaData();
-                  }}
-                  handleMoveSlot={async ({ slotId, newStart, newEnd }) => {
-                    await supabase.from('slots')
-                      .update({ 
-                        start_time: newStart.toISOString(),
-                        end_time: newEnd.toISOString() 
-                      })
-                      .eq('id', slotId);
-                    loadAgendaData();
-                  }}
-                  // Passamos o horário de funcionamento do salão para o min/max
-                  openingTime={salon?.opening_time}
-                  closingTime={salon?.closing_time}
-                />
-              </div>
-            ))}
-          </div>
-        )}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          {displayedProfessionals?.map(pro => (
+            <div key={pro.id} style={{ 
+              backgroundColor: 'white', 
+              padding: '20px', 
+              borderRadius: '16px', 
+              boxShadow: '0 4px 12px rgba(0,0,0,0.05)',
+              opacity: loadingSlots[pro.id] ? 0.6 : 1 // Feedback visual de loading por profissional
+            }}>
+              <h3 style={{ marginBottom: '15px', color: COLORS.deepCharcoal }}>
+                Agenda de {pro.name} {loadingSlots[pro.id] && "(Carregando...)"}
+              </h3>
+              
+              <ProfessionalCalendar
+                slots={slotsByProfessional[pro.id] || []}
+                handleDeleteSlot={(slotId) => handleDelete(pro.id, slotId)}
+                handleMoveSlot={({ slotId, newStart }) => handleMove(pro.id, slotId, newStart)}
+                openingTime={salon?.opening_time}
+                closingTime={salon?.closing_time}
+              />
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );
