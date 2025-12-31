@@ -1,4 +1,3 @@
-// services/supabaseService.js
 import { supabase } from "../lib/supabase";
 
 export const fetchSalonData = async (userId) => {
@@ -21,18 +20,24 @@ export const fetchServicesAndProfessionals = async (salonId) => {
   return { servicesRes, professionalsRes };
 };
 
-export const fetchProfessionalSlots = async (professionalId) => {
-  // Remova filtros de data temporariamente para testar se os dados aparecem
-  const { data, error } = await supabase
+// Agora aceita datas para evitar carregar dados desnecessários
+export const fetchProfessionalSlots = async (professionalId, startDate, endDate) => {
+  let query = supabase
     .from('slots')
     .select('*')
     .eq('professional_id', professionalId);
+
+  // Se datas forem passadas, filtra o período (ex: a semana atual)
+  if (startDate && endDate) {
+    query = query.gte('start_time', startDate).lte('start_time', endDate);
+  }
+    
+  const { data, error } = await supabase.from('slots').select('*').eq('professional_id', professionalId);
     
   if (error) {
     console.error("Erro na busca de slots:", error);
     throw error;
   }
-  console.log(`Slots encontrados para o prof ${professionalId}:`, data); // Adicione este log
   return data;
 };
 
@@ -45,7 +50,7 @@ export const deleteSlot = async (slotId) => {
 export const updateSlotTime = async (slotId, newStart) => {
   const { data, error } = await supabase
     .from('slots')
-    .update({ start_time: newStart.toISOString() }) // Mudamos de 'time' para 'start_time'
+    .update({ start_time: newStart instanceof Date ? newStart.toISOString() : newStart })
     .eq('id', slotId);
   if (error) throw error;
   return data;

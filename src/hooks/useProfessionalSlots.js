@@ -5,49 +5,65 @@ export const useProfessionalSlots = () => {
   const [slotsByProfessional, setSlotsByProfessional] = useState({});
   const [loadingSlots, setLoadingSlots] = useState({});
 
-  const loadProfessionalSlots = useCallback(async (professionals) => {
+  /**
+   * @param {Array} professionals - Lista de objetos de profissionais
+   * @param {String} startDate - Data inicial em formato ISO ou YYYY-MM-DD
+   * @param {String} endDate - Data final em formato ISO ou YYYY-MM-DD
+   */
+  const loadProfessionalSlots = useCallback(async (professionals, startDate = null, endDate = null) => {
     if (!professionals || professionals.length === 0) return;
 
-    setLoadingSlots(prev => ({
-      ...prev,
-      ...professionals.reduce((acc, pro) => ({ ...acc, [pro.id]: true }), {})
-    }));
+    // Sinaliza loading para cada profissional específico
+    setLoadingSlots(prev => {
+      const newLoading = { ...prev };
+      professionals.forEach(pro => { newLoading[pro.id] = true; });
+      return newLoading;
+    });
 
     try {
-      const slotsPromises = professionals.map(pro =>
-        fetchProfessionalSlots(pro.id)
+      // Promise.allSettled garante que se um profissional falhar, os outros carregam
+      const results = await Promise.allSettled(
+        professionals.map(pro => fetchProfessionalSlots(pro.id, startDate, endDate))
       );
       
-      const slotsResults = await Promise.all(slotsPromises);
-      
-      const slotsMap = {};
-      professionals.forEach((pro, idx) => {
-        const rawSlots = slotsResults[idx] || [];
+      const slotsUpdates = {};
+
+      results.forEach((result, idx) => {
+        const proId = professionals[idx].id;
         
-        // Mapeamento aprimorado para garantir compatibilidade visual
-        slotsMap[pro.id] = rawSlots.map(slot => {
-          // Prioriza start_time (formato novo) mas aceita time (formato antigo)
-          const actualTime = slot.start_time || slot.time;
+        if (result.status === 'fulfilled') {
+          const rawSlots = result.value || [];
           
-          return {
-            ...slot,
-            // O componente de agenda geralmente precisa da prop 'time'
-            time: actualTime, 
-            start_time: actualTime,
-            // Garante que o ID do profissional esteja presente no objeto do slot
-            professionalId: slot.professional_id || pro.id 
-          };
-        });
+          slotsUpdates[proId] = rawSlots.map(slot => {
+            const actualTime = slot.start_time || slot.time;
+            return {
+              ...slot,
+              time: actualTime, // Compatibilidade com componentes antigos
+              start_time: actualTime,
+              professionalId: slot.professional_id || proId 
+            };
+          });
+        } else {
+          console.error(`Falha ao carregar slots do profissional ${proId}:`, result.reason);
+          slotsUpdates[proId] = []; // Evita undefined em caso de erro
+        }
       });
       
-      setSlotsByProfessional(slotsMap);
-    } catch (error) {
-      console.error('Erro ao carregar slots:', error);
-    } finally {
-      setLoadingSlots(prev => ({
+      // Atualiza o estado fundindo os novos slots com os existentes
+      setSlotsByProfessional(prev => ({
         ...prev,
-        ...professionals.reduce((acc, pro) => ({ ...acc, [pro.id]: false }), {})
+        ...slotsUpdates
       }));
+
+    } catch (error) {
+      console.error('Erro geral no carregamento de slots:', error);
+    } finally {
+      // Desativa o loading
+      setLoadingSlots(prev => {
+        const newLoading = { ...prev };
+        professionals.forEach(pro => { newLoading[pro.id] = false; });
+        return newLoading;
+      });
     }
   }, []);
 
@@ -62,7 +78,6 @@ export const useProfessionalSlots = () => {
     setSlotsByProfessional(prev => ({
       ...prev,
       [professionalId]: prev[professionalId]?.map(s => 
-        // Atualizamos todas as referências de tempo para manter a consistência
         s.id === slotId ? { ...s, time: newTime, start_time: newTime } : s
       ) || []
     }));
