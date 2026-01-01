@@ -1,5 +1,5 @@
 // __tests__/utils/dashboardUtils.test.js
-import { getTodaySlotsCount, validateProfessionalExists } from '../../src/utils/dashboardUtils';
+import { getTodaySlotsCount, validateProfessionalExists } from '../../utils/dashboardUtils';
 
 describe('dashboardUtils', () => {
   describe('getTodaySlotsCount', () => {

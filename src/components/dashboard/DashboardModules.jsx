@@ -5,7 +5,8 @@ import {
   Calendar, 
   Scissors, 
   Settings, 
-  DollarSign 
+  DollarSign,
+  Package // Importado para o novo módulo
 } from 'lucide-react';
 import DashboardCard from './cards/DashboardCard';
 import { COLORS } from '../../constants/dashboard';
@@ -30,6 +31,13 @@ const DashboardModules = () => {
       badge: "PRO"
     },
     {
+      title: "Produtos", // Novo módulo
+      description: "Venda de itens e estoque",
+      icon: <Package size={24} />,
+      path: "/produtos",
+      color: "#F59E0B" // Um tom de âmbar/laranja para diferenciar de serviços
+    },
+    {
       title: "Profissionais",
       description: "Equipe, especialidades e acesso",
       icon: <Users size={24} />,
@@ -46,7 +54,7 @@ const DashboardModules = () => {
     {
       title: 'Clientes',
       icon: <Users size={24} />,
-      path: '/admin/clientes', // Ajustado conforme sua estrutura de pastas
+      path: '/admin/clientes',
       description: 'Fidelidade e Histórico',
       color: "#6366F1", 
       badge: 'CRM'
@@ -70,7 +78,7 @@ const DashboardModules = () => {
           icon={mod.icon}
           onClick={() => navigate(mod.path)}
           accentColor={mod.color}
-          badge={mod.badge} // Passando o badge para o card
+          badge={mod.badge}
         />
       ))}
     </div>

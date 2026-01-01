@@ -1,7 +1,6 @@
-// jest.config.js
-export default {
+module.exports = {
   testEnvironment: 'jsdom',
-  roots: ['<rootDir>/src', '<rootDir>/__tests__'],
+  roots: ['<rootDir>/src'],
   moduleNameMapper: {
     '\\.(css|less|scss|sass)$': 'identity-obj-proxy',
     '^@/(.*)$': '<rootDir>/src/$1'

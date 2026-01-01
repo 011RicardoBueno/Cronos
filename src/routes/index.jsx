@@ -3,82 +3,93 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useSalon } from '../context/SalonContext';
 
-// Importações de Páginas
-import Dashboard from '../pages/Dashboard';
+// --- GESTÃO E ADMINISTRAÇÃO ---
+import BusinessDashboard from '../pages/dashboard/BusinessDashboard'; 
 import Login from '../pages/Login';
 import SalonSetup from '../components/salon/SalonSetup';
-import Agenda from '../pages/agenda/Agenda';
-import Servicos from '../pages/servicos/Servicos';
-import Profissionais from '../pages/profissionais/Profissionais';
-import Configuracoes from '../pages/configuracoes/Configuracoes';
+import Schedule from '../pages/agenda/Schedule'; // Antigo Agenda
+import Services from '../pages/services/Services'; // Antigo Servicos
+import Products from '../pages/products/Produtos'; // Antigo Produtos
+import Professionals from '../pages/professionals/Professionals'; // Antigo Profissionais
+import Settings from '../pages/settings/Settings'; // Antigo Configuracoes
+import Clients from '../pages/customers/Clients';
+import QueueDisplay from '../pages/customers/QueueDisplay';
+
+// --- FINANCEIRO ---
+import CashFlow from '../pages/finance/CashFlow'; // Antigo FluxoCaixa
+import Analytics from '../pages/finance/Analytics'; 
+
+// --- CLIENTE LOGADO ---
 import Explorer from '../pages/client/Explorer'; 
 import SalonBooking from '../pages/client/SalonBooking';
 import MyAppointments from '../pages/client/MyAppointments';
-import PublicBookingPage from '../pages/public/PublicBookingPage'; // <-- Verifique se este arquivo existe neste caminho
-import Clients from '../pages/admin/Clients';
-import Financeiro from '../pages/financeiro/Financeiro';
-import QueueDisplay from '../pages/admin/QueueDisplay';
+
+// --- PÁGINAS PÚBLICAS ---
+import PublicBookingPage from '../pages/public/PublicBookingPage'; 
+import Feedback from '../pages/public/Feedback';
 
 export const AppRoutes = () => {
   const { session, loading: authLoading, user } = useAuth();
   const { loading: salonLoading, needsSetup } = useSalon();
 
-  // 1. Tela de Carregamento
   if (authLoading || salonLoading) {
     return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', fontFamily: 'sans-serif' }}>
-        <p>Carregando...</p>
+      <div style={styles.loader}>
+        <p>Carregando ecossistema...</p>
       </div>
     );
   }
 
   return (
     <Routes>
-      {/* --- ROTAS PÚBLICAS --- */}
-      {/* Se já estiver logado, não faz sentido ver a tela de login, manda para a Home */}
+      {/* ROTA DE LOGIN */}
       <Route path="/login" element={!session ? <Login /> : <Navigate to="/" replace />} />
+      
+      {/* ROTAS PÚBLICAS */}
       <Route path="/p/:slug" element={<PublicBookingPage />} />
+      <Route path="/avaliar/:slotId" element={<Feedback />} />
 
-      {/* --- PROTEÇÃO: NÃO LOGADO --- */}
       {!session ? (
         <Route path="*" element={<Navigate to="/login" replace />} />
       ) : (
-        /* --- USUÁRIO LOGADO --- */
         <>
-          {/* Se for ADMIN e precisar de SETUP, fica preso no /setup */}
+          {/* SETUP INICIAL */}
           {needsSetup && user?.user_metadata?.role === 'admin' ? (
             <>
               <Route path="/setup" element={<SalonSetup />} />
               <Route path="*" element={<Navigate to="/setup" replace />} />
             </>
           ) : (
-            /* --- ROTAS DO SISTEMA (LOGADO E CONFIGURADO) --- */
             <>
-              {/* Home redireciona conforme o perfil */}
+              {/* HOME / DASHBOARD */}
               <Route path="/" element={
                 user?.user_metadata?.role === 'client' 
                 ? <Navigate to="/agendamento-cliente" replace /> 
-                : <Dashboard />
+                : <BusinessDashboard /> 
               } />
 
-              {/* Rotas Administrativas */}
-              <Route path="/agenda" element={<Agenda />} />
-              <Route path="/servicos" element={<Servicos />} />
-              <Route path="/profissionais" element={<Profissionais />} />
-              <Route path="/configuracoes" element={<Configuracoes />} />
+              {/* OPERACIONAL */}
+              <Route path="/agenda" element={<Schedule />} />
+              <Route path="/servicos" element={<Services />} />
+              <Route path="/produtos" element={<Products />} />
+              <Route path="/profissionais" element={<Professionals />} />
+              <Route path="/configuracoes" element={<Settings />} />
+              
+              {/* CLIENTES */}
               <Route path="/admin/clientes" element={<Clients />} />
-              <Route path="/financeiro" element={<Financeiro />} />
               <Route path="/admin/painel-fila" element={<QueueDisplay />} />
 
-              {/* Rotas do Cliente */}
+              {/* FINANCEIRO */}
+              <Route path="/financeiro" element={<CashFlow />} />
+              <Route path="/analytics" element={<Analytics />} />
+
+              {/* ÁREA DO CLIENTE */}
               <Route path="/agendamento-cliente" element={<Explorer />} />
               <Route path="/agendar/:id" element={<SalonBooking />} />
               <Route path="/meus-agendamentos" element={<MyAppointments />} />
 
-              {/* Se tentar acessar /setup já estando configurado, volta pra Home */}
+              {/* FALLBACKS */}
               <Route path="/setup" element={<Navigate to="/" replace />} />
-              
-              {/* Fallback para rotas inexistentes dentro do login */}
               <Route path="*" element={<Navigate to="/" replace />} />
             </>
           )}
@@ -86,4 +97,16 @@ export const AppRoutes = () => {
       )}
     </Routes>
   );
+};
+
+const styles = {
+  loader: { 
+    display: 'flex', 
+    justifyContent: 'center', 
+    alignItems: 'center', 
+    height: '100vh', 
+    fontFamily: 'sans-serif',
+    backgroundColor: '#f9f9f9',
+    color: '#666'
+  }
 };

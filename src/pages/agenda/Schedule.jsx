@@ -2,8 +2,8 @@ import React, { useState, useEffect, useCallback } from "react";
 import { useSalon } from "../../context/SalonContext";
 import { useProfessionalSlots } from "../../hooks/useProfessionalSlots";
 import { deleteSlot, updateSlotTime } from "../../services/supabaseService";
-import { supabase } from "../../lib/supabase";
 import ProfessionalCalendar from "../../components/ProfessionalCalendar";
+import CheckoutModal from "../../components/CheckoutModal"; // Importado o novo componente
 import BackButton from "../../components/ui/BackButton";
 import { COLORS } from "../../constants/dashboard";
 import { CheckCircle2, Trash2, X, User, Clock, Scissors, DollarSign } from "lucide-react";
@@ -14,8 +14,9 @@ export default function Agenda() {
   const [selectedProfId, setSelectedProfId] = useState("all");
   const [currentViewDate, setCurrentViewDate] = useState(new Date());
   
-  // Estados do Modal
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  // Estados dos Modais
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
 
@@ -27,6 +28,7 @@ export default function Agenda() {
     updateSlotsAfterMove 
   } = useProfessionalSlots();
 
+  // Função auxiliar para calcular limites do calendário baseados no horário do salão
   const getCalendarTime = (timeString, fallbackHour) => {
     try {
       const baseDate = moment(currentViewDate).startOf('day'); 
@@ -49,17 +51,22 @@ export default function Agenda() {
     loadData();
   }, [loadData]);
 
-  // Função disparada ao clicar no evento do calendário
+  // Abre o modal de detalhes ao clicar no evento
   const handleSelectSlot = (slot) => {
     if (!slot || !slot.id) return;
     setSelectedSlot(slot);
-    setIsModalOpen(true);
+    setIsDetailModalOpen(true);
+  };
+
+  // Inicia o fluxo de checkout
+  const startCheckoutFlow = () => {
+    setIsDetailModalOpen(false);
+    setIsCheckoutOpen(true);
   };
 
   const handleDelete = async () => {
     if(!selectedSlot?.id) return;
 
-    // Trava: Não permite deletar se já estiver concluído
     if (selectedSlot.status === 'completed') {
       alert("Este agendamento já foi finalizado e faturado. Não é possível cancelá-lo.");
       return;
@@ -71,48 +78,9 @@ export default function Agenda() {
       setIsProcessing(true);
       await deleteSlot(selectedSlot.id);
       updateSlotsAfterDelete(selectedSlot.professional_id, selectedSlot.id);
-      setIsModalOpen(false);
+      setIsDetailModalOpen(false);
     } catch (err) {
       alert("Erro ao deletar");
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
-  const handleCheckout = async () => {
-    if(!selectedSlot?.id) return;
-    try {
-      setIsProcessing(true);
-      
-      // 1. Atualiza agendamento para 'completed'
-      const { error: slotError } = await supabase
-        .from('slots')
-        .update({ status: 'completed' })
-        .eq('id', selectedSlot.id);
-
-      if (slotError) throw slotError;
-
-      // 2. Registra na tabela de finanças
-      const valorTotal = selectedSlot.services?.price || 0;
-      const { error: finError } = await supabase
-        .from('finance_transactions')
-        .insert([{
-          salon_id: salon.id,
-          type: 'income',
-          category: 'servico',
-          amount: valorTotal,
-          description: `Serviço: ${selectedSlot.services?.name} - Cliente: ${selectedSlot.client_name}`,
-          professional_id: selectedSlot.professional_id,
-          professional_commission: valorTotal * 0.5 // 50% de comissão fixa
-        }]);
-
-      if (finError) throw finError;
-
-      alert("Atendimento finalizado com sucesso!");
-      setIsModalOpen(false);
-      loadData(); // Recarrega para atualizar status visual (cor) na agenda
-    } catch (err) {
-      alert("Erro no checkout: " + err.message);
     } finally {
       setIsProcessing(false);
     }
@@ -138,7 +106,7 @@ export default function Agenda() {
         <div style={styles.headerRow}>
           <h2 style={{ color: COLORS.deepCharcoal, margin: 0 }}>Agenda: {salon?.name}</h2>
           <div style={styles.filterBox}>
-            <label style={{ fontWeight: '500' }}>Filtrar:</label>
+            <label style={{ fontWeight: '500' }}>Filtrar Profissional:</label>
             <select value={selectedProfId} onChange={(e) => setSelectedProfId(e.target.value)} style={styles.select}>
               <option value="all">Todos</option>
               {professionals?.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
@@ -163,19 +131,20 @@ export default function Agenda() {
         </div>
       </div>
 
-      {isModalOpen && (
+      {/* MODAL DE DETALHES DO AGENDAMENTO */}
+      {isDetailModalOpen && (
         <div style={styles.modalOverlay}>
           <div style={styles.modalContent}>
             <div style={styles.modalHeader}>
               <h3 style={{margin:0}}>Detalhes do Atendimento</h3>
-              <button onClick={() => setIsModalOpen(false)} style={styles.closeBtn}><X size={20}/></button>
+              <button onClick={() => setIsDetailModalOpen(false)} style={styles.closeBtn}><X size={20}/></button>
             </div>
             
             <div style={styles.modalBody}>
               <div style={styles.infoRow}><User size={18} color="#666"/> <strong>Cliente:</strong> {selectedSlot?.client_name}</div>
               <div style={styles.infoRow}><Scissors size={18} color="#666"/> <strong>Serviço:</strong> {selectedSlot?.services?.name}</div>
               <div style={styles.infoRow}><Clock size={18} color="#666"/> <strong>Horário:</strong> {moment(selectedSlot?.start_time).format('HH:mm')}</div>
-              <div style={styles.infoRow}><DollarSign size={18} color="#666"/> <strong>Valor:</strong> R$ {selectedSlot?.services?.price}</div>
+              <div style={styles.infoRow}><DollarSign size={18} color="#666"/> <strong>Valor do Serviço:</strong> R$ {selectedSlot?.services?.price}</div>
               
               {selectedSlot?.status === 'completed' && (
                 <div style={styles.statusBadge}>
@@ -200,7 +169,7 @@ export default function Agenda() {
               </button>
               
               <button 
-                onClick={handleCheckout} 
+                onClick={startCheckoutFlow} 
                 disabled={isProcessing || selectedSlot?.status === 'completed'} 
                 style={{
                   ...styles.actionBtn, 
@@ -210,12 +179,20 @@ export default function Agenda() {
                   cursor: selectedSlot?.status === 'completed' ? 'default' : 'pointer'
                 }}
               >
-                <CheckCircle2 size={18}/> {selectedSlot?.status === 'completed' ? 'Já Pago' : 'Finalizar'}
+                <CheckCircle2 size={18}/> {selectedSlot?.status === 'completed' ? 'Já Pago' : 'Finalizar / Checkout'}
               </button>
             </div>
           </div>
         </div>
       )}
+
+      {/* MODAL DE CHECKOUT (Produtos + Serviços + Comissões) */}
+      <CheckoutModal 
+        isOpen={isCheckoutOpen}
+        onClose={() => setIsCheckoutOpen(false)}
+        slot={selectedSlot}
+        onComplete={loadData} // Recarrega os dados para pintar o slot de "concluído"
+      />
     </div>
   );
 }
@@ -224,7 +201,7 @@ const styles = {
   headerRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: "20px 0" },
   filterBox: { display: 'flex', alignItems: 'center', gap: '10px' },
   select: { padding: '8px', borderRadius: '8px', border: `1px solid ${COLORS.sageGreen}`, outline: 'none' },
-  calendarCard: { backgroundColor: 'white', padding: '20px', borderRadius: '16px', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' },
+  calendarCard: { backgroundColor: 'white', padding: '20px', borderRadius: '16px', boxShadow: '0 4px 12px rgba(0,0,0,0.05)', marginBottom: '30px' },
   modalOverlay: { position: 'fixed', top:0, left:0, right:0, bottom:0, backgroundColor: 'rgba(0,0,0,0.7)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999 },
   modalContent: { backgroundColor: 'white', padding: '24px', borderRadius: '20px', width: '90%', maxWidth: '380px', boxShadow: '0 20px 40px rgba(0,0,0,0.2)' },
   modalHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '1px solid #eee', paddingBottom: '10px' },
