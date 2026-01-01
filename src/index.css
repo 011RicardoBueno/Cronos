@@ -1,11 +1,25 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 :root {
+  /* typography / system */
   font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
   font-weight: 400;
 
+  /* color scheme */
   color-scheme: light dark;
   color: #403D39;
   background-color: #FAFAF9;
+
+  /* theme variables (Tailwind brand tokens use these via tailwind.config.js) */
+  --color-primary: #556B2F;   /* brand primary */
+  --color-secondary: #2C2C2C; /* brand secondary */
+  --color-accent: #D4AF37;    /* brand accent */
+  --color-surface: #F8FAFC;   /* brand surface */
+  --color-text: #1E293B;      /* brand text */
+  --color-muted: #64748B;     /* brand muted */
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;

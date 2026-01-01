@@ -12,6 +12,7 @@ import Services from '../pages/services/Services'; // Antigo Servicos
 import Products from '../pages/products/Products'; // Antigo Produtos
 import Professionals from '../pages/professionals/Professionals'; // Antigo Profissionais
 import Settings from '../pages/settings/Settings'; // Antigo Configuracoes
+import DashboardLayout from '../components/layout/DashboardLayout';
 import Clients from '../pages/customers/Clients';
 import QueueDisplay from '../pages/customers/QueueDisplay';
 
@@ -61,27 +62,29 @@ export const AppRoutes = () => {
             </>
           ) : (
             <>
-              {/* HOME / DASHBOARD */}
-              <Route path="/" element={
-                user?.user_metadata?.role === 'client' 
-                ? <Navigate to="/agendamento-cliente" replace /> 
-                : <BusinessDashboard /> 
-              } />
+              {/* ADMIN LAYOUT (Dashboard + persistent sidebar) */}
+              <Route element={<DashboardLayout />}>
+                <Route index element={
+                  user?.user_metadata?.role === 'client' 
+                    ? <Navigate to="/agendamento-cliente" replace /> 
+                    : <BusinessDashboard /> 
+                } />
 
-              {/* OPERACIONAL */}
-              <Route path="/agenda" element={<Schedule />} />
-              <Route path="/servicos" element={<Services />} />
-              <Route path="/produtos" element={<Products />} />
-              <Route path="/profissionais" element={<Professionals />} />
-              <Route path="/configuracoes" element={<Settings />} />
-              
-              {/* CLIENTES */}
-              <Route path="/admin/clientes" element={<Clients />} />
-              <Route path="/admin/painel-fila" element={<QueueDisplay />} />
+                {/* OPERACIONAL */}
+                <Route path="agenda" element={<Schedule />} />
+                <Route path="servicos" element={<Services />} />
+                <Route path="produtos" element={<Products />} />
+                <Route path="profissionais" element={<Professionals />} />
+                <Route path="configuracoes" element={<Settings />} />
+                
+                {/* CLIENTES */}
+                <Route path="admin/clientes" element={<Clients />} />
+                <Route path="admin/painel-fila" element={<QueueDisplay />} />
 
-              {/* FINANCEIRO */}
-              <Route path="/financeiro" element={<CashFlow />} />
-              <Route path="/analytics" element={<Analytics />} />
+                {/* FINANCEIRO */}
+                <Route path="financeiro" element={<CashFlow />} />
+                <Route path="analytics" element={<Analytics />} />
+              </Route>
 
               {/* ÁREA DO CLIENTE */}
               <Route path="/agendamento-cliente" element={<Explorer />} />
