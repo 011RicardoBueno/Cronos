@@ -1,163 +1,115 @@
-import React, { useState } from 'react';
-import { useSalon } from '../../context/SalonContext';
+import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
-import { COLORS } from '../../constants/dashboard';
-import BackButton from '../../components/ui/BackButton';
-import { Star, Percent, Trash2, UserPlus } from 'lucide-react';
+import { Search, Plus, Edit3, Trash2, User, Briefcase } from 'lucide-react';
 
-const Profissionais = () => {
-  const { salon, professionals, refreshSalon, loading } = useSalon();
-  const [isAdding, setIsAdding] = useState(false);
-  const [formData, setFormData] = useState({
-    name: '',
-    commission_rate: '50'
-  });
+export default function Professionals() {
+  const [professionals, setProfessionals] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
 
-  const handleAddProfessional = async (e) => {
-    e.preventDefault();
-    
-    if (!formData.name.trim() || !salon?.id) {
-      alert("Erro: Preencha o nome do profissional.");
-      return;
-    }
+  useEffect(() => {
+    fetchProfessionals();
+  }, []);
 
+  async function fetchProfessionals() {
     try {
-      setIsAdding(true);
-      const { error } = await supabase
+      setLoading(true);
+      const { data, error } = await supabase
         .from('professionals')
-        .insert([{ 
-          name: formData.name.trim(), 
-          salon_id: salon.id,
-          commission_rate: parseFloat(formData.commission_rate)
-        }]);
-
+        .select('*')
+        .order('name');
+      
       if (error) throw error;
-
-      setFormData({ name: '', commission_rate: '50' });
-      await refreshSalon(); 
-      alert('Profissional cadastrado com sucesso!');
-    } catch (err) {
-      console.error(err);
-      alert('Erro ao cadastrar: ' + err.message);
+      setProfessionals(data || []);
+    } catch (error) {
+      console.error('Erro ao buscar profissionais:', error);
     } finally {
-      setIsAdding(false);
+      setLoading(false);
     }
-  };
+  }
 
-  const handleDelete = async (id) => {
-    if (!window.confirm('Excluir este profissional? Os dados financeiros históricos serão mantidos, mas ele não aparecerá mais na agenda.')) return;
-    try {
-      const { error } = await supabase.from('professionals').delete().eq('id', id);
-      if (error) throw error;
-      await refreshSalon();
-    } catch (err) {
-      console.error(err);
-      alert("Erro ao excluir: " + err.message);
-    }
-  };
-
-  if (loading && !salon) return <div style={{ padding: '40px', textAlign: 'center' }}>Carregando...</div>;
+  const filteredProfessionals = professionals.filter(p => 
+    p.name.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   return (
-    <div style={{ backgroundColor: COLORS.offWhite, minHeight: '100vh', padding: '40px 20px' }}>
-      <div style={{ maxWidth: '800px', margin: '0 auto' }}>
-        <BackButton colors={COLORS} />
+    <div className="min-h-screen bg-brand-surface p-4 md:p-8 transition-colors duration-300">
+      <div className="max-w-7xl mx-auto">
         
-        <h1 style={{ color: COLORS.deepCharcoal, marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <UserPlus size={28} color={COLORS.sageGreen} /> Gestão da Equipe
-        </h1>
-        <p style={{ color: '#666', marginBottom: '30px' }}>Defina a comissão individual e acompanhe o desempenho da equipe.</p>
+        {/* HEADER */}
+        <header className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+          <div>
+            <h2 className="text-2xl font-bold text-brand-text">Profissionais</h2>
+            <p className="text-sm text-brand-muted">Gerencie sua equipe e comissões</p>
+          </div>
+          <button className="flex items-center gap-2 bg-brand-primary text-white px-5 py-2.5 rounded-xl font-bold hover:opacity-90 transition-all shadow-lg shadow-brand-primary/20">
+            <Plus size={20} /> Novo Profissional
+          </button>
+        </header>
 
-        {/* Formulário de Cadastro */}
-        <div style={styles.card}>
-          <form onSubmit={handleAddProfessional} style={styles.formGrid}>
-            <div style={{ flex: 2 }}>
-              <label style={styles.label}>Nome do Profissional</label>
-              <input
-                type="text"
-                placeholder="Ex: Carlos Barbeiro"
-                value={formData.name}
-                onChange={(e) => setFormData({...formData, name: e.target.value})}
-                disabled={isAdding}
-                style={styles.input}
-              />
-            </div>
-            <div style={{ flex: 1 }}>
-              <label style={styles.label}>Comissão (%)</label>
-              <div style={{ position: 'relative' }}>
-                <input
-                  type="number"
-                  value={formData.commission_rate}
-                  onChange={(e) => setFormData({...formData, commission_rate: e.target.value})}
-                  disabled={isAdding}
-                  style={{ ...styles.input, paddingLeft: '35px' }}
-                />
-                <Percent size={16} style={styles.inputIcon} />
-              </div>
-            </div>
-            <button
-              type="submit"
-              disabled={isAdding || !formData.name.trim()}
-              style={{ ...styles.addBtn, backgroundColor: isAdding ? '#ccc' : COLORS.sageGreen }}
-            >
-              {isAdding ? 'Salvando...' : 'Adicionar'}
-            </button>
-          </form>
+        {/* BUSCA */}
+        <div className="relative mb-8">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-brand-muted" size={20} />
+          <input 
+            type="text"
+            placeholder="Buscar por nome..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full bg-brand-card border border-brand-muted/20 rounded-2xl py-3 pl-12 pr-4 text-brand-text outline-none focus:ring-2 focus:ring-brand-primary/50 transition-all"
+          />
         </div>
 
-        {/* Lista de Profissionais */}
-        <div style={{ display: 'grid', gap: '15px' }}>
-          {professionals.length > 0 ? (
-            professionals.map(prof => (
-              <div key={prof.id} style={styles.profRow}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                  <div style={styles.avatar}>
-                    {prof.name.charAt(0).toUpperCase()}
-                  </div>
-                  <div>
-                    <span style={styles.profName}>{prof.name}</span>
-                    <div style={styles.profMeta}>
-                      <span style={styles.ratingBadge}>
-                        <Star size={12} fill="#FFD700" color="#FFD700" /> {prof.avg_rating || '5.0'}
-                      </span>
-                      <span style={{ color: '#888' }}>•</span>
-                      <span>Comissão: <strong>{prof.commission_rate}%</strong></span>
-                    </div>
-                  </div>
+        {/* GRID DE CARDS */}
+        {loading ? (
+          <div className="text-center p-10 text-brand-muted animate-pulse">Carregando equipe...</div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {filteredProfessionals.map((pro) => (
+              <div key={pro.id} className="bg-brand-card rounded-3xl border border-brand-muted/20 p-6 hover:shadow-xl transition-all group text-center">
+                
+                {/* AVATAR */}
+                <div className="w-24 h-24 mx-auto rounded-full bg-brand-surface border-2 border-brand-primary/30 p-1 mb-4 overflow-hidden flex items-center justify-center">
+                  {pro.avatar_url ? (
+                    <img src={pro.avatar_url} alt={pro.name} className="w-full h-full rounded-full object-cover" />
+                  ) : (
+                    <User size={40} className="text-brand-muted/50" />
+                  )}
                 </div>
-                <button 
-                  onClick={() => handleDelete(prof.id)}
-                  style={styles.deleteBtn}
-                >
-                  <Trash2 size={18} />
-                </button>
+
+                {/* INFO */}
+                <h3 className="text-brand-text font-bold text-xl mb-1">{pro.name}</h3>
+                <p className="text-brand-muted text-sm flex items-center justify-center gap-1">
+                   {pro.specialty || 'Especialista'}
+                </p>
+
+                {/* COMISSÃO */}
+                <div className="bg-brand-primary/10 text-brand-primary px-3 py-1 rounded-full text-xs font-bold inline-block mt-2">
+                  Comissão: {pro.commission_rate || 0}%
+                </div>
+
+                {/* ACTIONS */}
+                <div className="flex justify-center gap-3 mt-6 pt-4 border-t border-brand-muted/10">
+                  <button className="p-2 rounded-lg text-brand-muted hover:text-brand-primary transition-colors hover:bg-brand-surface">
+                    <Edit3 size={20} />
+                  </button>
+                  <button className="p-2 rounded-lg text-brand-muted hover:text-red-500 transition-colors hover:bg-brand-surface">
+                    <Trash2 size={20} />
+                  </button>
+                </div>
               </div>
-            ))
-          ) : (
-            <div style={styles.emptyState}>
-              <p style={{ color: '#666', margin: 0 }}>Nenhum profissional cadastrado.</p>
-            </div>
-          )}
-        </div>
+            ))}
+          </div>
+        )}
+
+        {/* EMPTY STATE */}
+        {!loading && filteredProfessionals.length === 0 && (
+          <div className="bg-brand-card rounded-3xl p-12 text-center border border-brand-muted/10">
+            <Briefcase size={48} className="mx-auto text-brand-muted/30 mb-4" />
+            <h3 className="text-brand-text font-bold text-lg">Nenhum profissional encontrado</h3>
+            <p className="text-brand-muted text-sm">Cadastre sua equipe para começar.</p>
+          </div>
+        )}
       </div>
     </div>
   );
-};
-
-const styles = {
-  card: { backgroundColor: 'white', padding: '24px', borderRadius: '16px', marginBottom: '30px', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' },
-  formGrid: { display: 'flex', gap: '15px', alignItems: 'flex-end', flexWrap: 'wrap' },
-  label: { display: 'block', fontSize: '13px', fontWeight: 'bold', color: '#555', marginBottom: '6px' },
-  input: { width: '100%', padding: '12px 16px', borderRadius: '8px', border: `1px solid ${COLORS.warmSand}`, fontSize: '16px', boxSizing: 'border-box' },
-  inputIcon: { position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#999' },
-  addBtn: { color: 'white', border: 'none', padding: '12px 24px', borderRadius: '8px', fontWeight: '600', cursor: 'pointer', transition: '0.3s', height: '47px' },
-  profRow: { backgroundColor: 'white', padding: '20px', borderRadius: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: `1px solid ${COLORS.warmSand}` },
-  avatar: { width: '45px', height: '45px', backgroundColor: COLORS.warmSand, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', color: COLORS.deepCharcoal },
-  profName: { fontSize: '18px', fontWeight: '600', color: COLORS.deepCharcoal },
-  profMeta: { display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', marginTop: '4px' },
-  ratingBadge: { display: 'flex', alignItems: 'center', gap: '4px', color: '#B8860B', fontWeight: 'bold' },
-  deleteBtn: { color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', padding: '8px' },
-  emptyState: { textAlign: 'center', padding: '40px', backgroundColor: '#fff', borderRadius: '12px', border: `1px dashed ${COLORS.warmSand}` }
-};
-
-export default Profissionais;
+}

@@ -5,7 +5,6 @@ import { deleteSlot, updateSlotTime } from "../../services/supabaseService";
 import ProfessionalCalendar from "../../components/ProfessionalCalendar";
 import CheckoutModal from "../../components/CheckoutModal"; // Importado o novo componente
 import BackButton from "../../components/ui/BackButton";
-import { COLORS } from "../../constants/dashboard";
 import { CheckCircle2, Trash2, X, User, Clock, Scissors, DollarSign } from "lucide-react";
 import moment from "moment";
 
@@ -102,25 +101,32 @@ export default function Agenda() {
   const maxTime = getCalendarTime(salon?.closing_time, 20);
 
   return (
-    <div style={{ backgroundColor: COLORS.offWhite, minHeight: "100vh", padding: "20px" }}>
-      <div style={{ maxWidth: "1200px", margin: "0 auto" }}>
-        <BackButton colors={COLORS} />
+    <div className="min-h-screen bg-brand-surface p-4 md:p-8 transition-colors duration-300">
+      <div className="max-w-7xl mx-auto">
+        <BackButton />
         
-        <div style={styles.headerRow}>
-          <h2 style={{ color: COLORS.deepCharcoal, margin: 0 }}>Agenda: {salon?.name}</h2>
-          <div style={styles.filterBox}>
-            <label style={{ fontWeight: '500' }}>Filtrar Profissional:</label>
-            <select value={selectedProfId} onChange={(e) => setSelectedProfId(e.target.value)} style={styles.select}>
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 my-6">
+          <h2 className="text-2xl font-bold text-brand-text">Agenda: {salon?.name}</h2>
+          <div className="flex items-center gap-3">
+            <label className="font-medium text-brand-muted text-sm">Filtrar Profissional:</label>
+            <select 
+              value={selectedProfId} 
+              onChange={(e) => setSelectedProfId(e.target.value)} 
+              className="bg-brand-card border border-brand-muted/30 rounded-lg p-2 text-brand-text focus:ring-2 focus:ring-brand-primary outline-none cursor-pointer"
+            >
               <option value="all">Todos</option>
               {professionals?.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
           </div>
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+        <div className="flex flex-col gap-6">
           {(selectedProfId === "all" ? professionals : professionals.filter(p => p.id === selectedProfId))?.map(pro => (
-            <div key={pro.id} style={styles.calendarCard}>
-              <h3 style={{ marginBottom: '15px', color: COLORS.deepCharcoal }}>{pro.name}</h3>
+            <div key={pro.id} className="bg-brand-card p-6 rounded-2xl border border-brand-muted/20 shadow-sm">
+              <h3 className="text-lg font-bold text-brand-text mb-4 flex items-center gap-2">
+                <span className="w-2 h-6 bg-brand-primary rounded-full"></span>
+                {pro.name}
+              </h3>
               <ProfessionalCalendar
                 slots={slotsByProfessional[pro.id] || []}
                 handleDeleteSlot={handleSelectSlot}
@@ -136,37 +142,49 @@ export default function Agenda() {
 
       {/* MODAL DE DETALHES DO AGENDAMENTO */}
       {isDetailModalOpen && (
-        <div style={styles.modalOverlay}>
-          <div style={styles.modalContent}>
-            <div style={styles.modalHeader}>
-              <h3 style={{margin:0}}>Detalhes do Atendimento</h3>
-              <button onClick={() => setIsDetailModalOpen(false)} style={styles.closeBtn}><X size={20}/></button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-brand-card w-full max-w-md rounded-3xl p-6 border border-brand-muted/20 shadow-2xl animate-in fade-in zoom-in duration-200">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-lg font-bold text-brand-text">Detalhes do Atendimento</h3>
+              <button onClick={() => setIsDetailModalOpen(false)} className="text-brand-muted hover:text-brand-text transition-colors">
+                <X size={20}/>
+              </button>
             </div>
             
-            <div style={styles.modalBody}>
-              <div style={styles.infoRow}><User size={18} color="#666"/> <strong>Cliente:</strong> {selectedSlot?.client_name}</div>
-              <div style={styles.infoRow}><Scissors size={18} color="#666"/> <strong>Serviço:</strong> {selectedSlot?.services?.name}</div>
-              <div style={styles.infoRow}><Clock size={18} color="#666"/> <strong>Horário:</strong> {moment(selectedSlot?.start_time).format('HH:mm')}</div>
-              <div style={styles.infoRow}><DollarSign size={18} color="#666"/> <strong>Valor do Serviço:</strong> R$ {selectedSlot?.services?.price}</div>
+            <div className="space-y-4">
+              <div className="flex items-center gap-3 text-brand-text">
+                <User size={18} className="text-brand-muted"/> 
+                <span className="text-brand-text"><strong className="text-brand-muted">Cliente:</strong> {selectedSlot?.client_name}</span>
+              </div>
+              <div className="flex items-center gap-3 text-brand-text">
+                <Scissors size={18} className="text-brand-muted"/> 
+                <span className="text-brand-text"><strong className="text-brand-muted">Serviço:</strong> {selectedSlot?.services?.name}</span>
+              </div>
+              <div className="flex items-center gap-3 text-brand-text">
+                <Clock size={18} className="text-brand-muted"/> 
+                <span className="text-brand-text"><strong className="text-brand-muted">Horário:</strong> {moment(selectedSlot?.start_time).format('HH:mm')}</span>
+              </div>
+              <div className="flex items-center gap-3 text-brand-text">
+                <DollarSign size={18} className="text-brand-muted"/> 
+                <span className="text-brand-text"><strong className="text-brand-muted">Valor:</strong> R$ {selectedSlot?.services?.price}</span>
+              </div>
               
               {selectedSlot?.status === 'completed' && (
-                <div style={styles.statusBadge}>
+                <div className="mt-4 p-3 bg-green-500/10 text-green-600 rounded-xl flex items-center justify-center gap-2 font-bold text-sm border border-green-500/20">
                   <CheckCircle2 size={16} /> ATENDIMENTO FINALIZADO
                 </div>
               )}
             </div>
 
-            <div style={styles.modalFooter}>
+            <div className="mt-8 flex gap-3">
               <button 
                 onClick={handleDelete} 
                 disabled={isProcessing || selectedSlot?.status === 'completed'} 
-                style={{
-                  ...styles.actionBtn, 
-                  backgroundColor: '#FFF5F5', 
-                  color: '#E53E3E',
-                  opacity: selectedSlot?.status === 'completed' ? 0.5 : 1,
-                  cursor: selectedSlot?.status === 'completed' ? 'not-allowed' : 'pointer'
-                }}
+                className={`flex-1 flex items-center justify-center gap-2 p-3 rounded-xl font-medium transition-all
+                  ${selectedSlot?.status === 'completed' 
+                    ? 'bg-brand-muted/10 text-brand-muted cursor-not-allowed' 
+                    : 'bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white'}
+                `}
               >
                 <Trash2 size={18}/> {selectedSlot?.status === 'completed' ? 'Bloqueado' : 'Cancelar'}
               </button>
@@ -174,13 +192,11 @@ export default function Agenda() {
               <button 
                 onClick={startCheckoutFlow} 
                 disabled={isProcessing || selectedSlot?.status === 'completed'} 
-                style={{
-                  ...styles.actionBtn, 
-                  backgroundColor: COLORS.sageGreen, 
-                  color: 'white',
-                  opacity: selectedSlot?.status === 'completed' ? 0.7 : 1,
-                  cursor: selectedSlot?.status === 'completed' ? 'default' : 'pointer'
-                }}
+                className={`flex-1 flex items-center justify-center gap-2 p-3 rounded-xl font-medium transition-all
+                  ${selectedSlot?.status === 'completed' 
+                    ? 'bg-brand-muted cursor-default opacity-70 text-white' 
+                    : 'bg-brand-primary text-white hover:opacity-90'}
+                `}
               >
                 <CheckCircle2 size={18}/> {selectedSlot?.status === 'completed' ? 'Já Pago' : 'Finalizar / Checkout'}
               </button>
@@ -199,19 +215,3 @@ export default function Agenda() {
     </div>
   );
 }
-
-const styles = {
-  headerRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: "20px 0" },
-  filterBox: { display: 'flex', alignItems: 'center', gap: '10px' },
-  select: { padding: '8px', borderRadius: '8px', border: `1px solid ${COLORS.sageGreen}`, outline: 'none' },
-  calendarCard: { backgroundColor: 'white', padding: '20px', borderRadius: '16px', boxShadow: '0 4px 12px rgba(0,0,0,0.05)', marginBottom: '30px' },
-  modalOverlay: { position: 'fixed', top:0, left:0, right:0, bottom:0, backgroundColor: 'rgba(0,0,0,0.7)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999 },
-  modalContent: { backgroundColor: 'white', padding: '24px', borderRadius: '20px', width: '90%', maxWidth: '380px', boxShadow: '0 20px 40px rgba(0,0,0,0.2)' },
-  modalHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '1px solid #eee', paddingBottom: '10px' },
-  closeBtn: { background: 'none', border: 'none', cursor: 'pointer', color: '#999' },
-  modalBody: { display: 'grid', gap: '15px', marginBottom: '25px' },
-  infoRow: { display: 'flex', alignItems: 'center', gap: '10px', fontSize: '15px', color: '#333' },
-  statusBadge: { backgroundColor: '#E8F5E9', color: '#2E7D32', padding: '10px', borderRadius: '8px', fontSize: '12px', textAlign: 'center', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginTop: '10px' },
-  modalFooter: { display: 'flex', gap: '10px' },
-  actionBtn: { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '14px', borderRadius: '12px', border: 'none', fontWeight: 'bold', cursor: 'pointer', transition: 'all 0.2s' }
-};

@@ -1,124 +1,229 @@
-import React, { useState, useEffect } from 'react';
-import { useSalon } from '../../context/SalonContext';
+import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../../lib/supabase';
-import { COLORS } from '../../constants/dashboard';
 import { DollarSign, TrendingUp, Users, Package, Calendar, ArrowLeft } from 'lucide-react';
-import FinanceTabs from '../../components/ui/FinanceTabs';
 import { useNavigate } from 'react-router-dom';
+import FinanceTabs from '../../components/ui/FinanceTabs';
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend,
+  Filler
+} from 'chart.js';
+import { Line } from 'react-chartjs-2';
+
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend,
+  Filler
+);
 
 const CashFlow = () => {
-  const { salon } = useSalon();
   const navigate = useNavigate();
-  const [_loading, setLoading] = useState(true);
   const [transactions, setTransactions] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [dateRange, setDateRange] = useState({
+    start: new Date(new Date().setDate(new Date().getDate() - 30)).toISOString().split('T')[0],
+    end: new Date().toISOString().split('T')[0]
+  });
+
   const [stats, setStats] = useState({ total: 0, commissions: 0, products: 0, net: 0 });
 
   useEffect(() => {
-    if (!salon?.id) return;
+    fetchTransactions();
+  }, [dateRange]);
 
-    const fetchFinanceData = async () => {
-      try {
-        setLoading(true);
-        const { data, error } = await supabase
-          .from('finance_transactions')
-          .select(`*, professionals(name)`) 
-          .eq('salon_id', salon.id)
-          .order('created_at', { ascending: false });
+  async function fetchTransactions() {
+    try {
+      setLoading(true);
+      let query = supabase
+        .from('finance_transactions')
+        .select(`*, professionals (name)`)
+        .order('created_at', { ascending: true }); // Ascending para o gráfico fluir da esquerda para a direita
 
-        if (error) throw error;
+      if (dateRange.start) query = query.gte('created_at', `${dateRange.start}T00:00:00`);
+      if (dateRange.end) query = query.lte('created_at', `${dateRange.end}T23:59:59`);
 
-        setTransactions(data || []);
-        calculateStats(data || []);
-      } catch (err) {
-        console.error("Erro financeiro:", err);
-      } finally {
-        setLoading(false);
-      }
-    };
+      const { data, error } = await query;
+      if (error) throw error;
 
-    fetchFinanceData();
-  }, [salon?.id]);
+      setTransactions(data || []);
+      calculateStats(data || []);
+    } catch (error) {
+      console.error('Erro:', error);
+    } finally {
+      setLoading(false);
+    }
+  }
+
   const calculateStats = (data) => {
-    const totals = data.reduce((acc, curr) => {
-      acc.total += curr.amount;
-      acc.commissions += curr.professional_commission;
-      if (curr.type === 'product') acc.products += curr.amount;
-      return acc;
-    }, { total: 0, commissions: 0, products: 0 });
+    const total = data.reduce((acc, curr) => acc + curr.amount, 0);
+    const commissions = data.reduce((acc, curr) => acc + (curr.professional_commission || 0), 0);
+    const products = data.filter(t => t.type === 'product').reduce((acc, curr) => acc + curr.amount, 0);
+    setStats({ total, commissions, products, net: total - commissions });
+  };
 
-    setStats({
-      ...totals,
-      net: totals.total - totals.commissions
-    });
+  // Processamento dos dados para o Gráfico (Memoizado para performance)
+  const chartData = useMemo(() => {
+    const grouped = transactions.reduce((acc, curr) => {
+      const date = new Date(curr.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
+      if (!acc[date]) {
+        acc[date] = { name: date, receita: 0, liquido: 0 };
+      }
+      acc[date].receita += curr.amount;
+      acc[date].liquido += (curr.amount - (curr.professional_commission || 0));
+      return acc;
+    }, {});
+    return Object.values(grouped);
+  }, [transactions]);
+
+  // Configuração dos dados para o Chart.js
+  const chartConfig = useMemo(() => {
+    const getVar = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+
+    return {
+      labels: chartData.map(d => d.name),
+      datasets: [
+        {
+          label: 'Receita',
+          data: chartData.map(d => d.receita),
+          borderColor: getVar('--color-brand-primary') || '#556B2F',
+          backgroundColor: (context) => {
+            const ctx = context.chart.ctx;
+            const gradient = ctx.createLinearGradient(0, 0, 0, 300);
+            gradient.addColorStop(0, 'rgba(85, 107, 47, 0.4)');
+            gradient.addColorStop(1, 'rgba(85, 107, 47, 0.0)');
+            return gradient;
+          },
+          fill: true,
+          tension: 0.4,
+          borderWidth: 2,
+          pointRadius: 0,
+          pointHoverRadius: 6,
+        },
+        {
+          label: 'Líquido',
+          data: chartData.map(d => d.liquido),
+          borderColor: getVar('--color-brand-accent') || '#D4AF37',
+          backgroundColor: 'transparent',
+          borderDash: [5, 5],
+          tension: 0.4,
+          borderWidth: 2,
+          pointRadius: 0,
+          pointHoverRadius: 6,
+        }
+      ]
+    };
+  }, [chartData]);
+
+  const chartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        mode: 'index',
+        intersect: false,
+        backgroundColor: getComputedStyle(document.documentElement).getPropertyValue('--color-brand-card').trim(),
+        titleColor: getComputedStyle(document.documentElement).getPropertyValue('--color-brand-text').trim(),
+        bodyColor: getComputedStyle(document.documentElement).getPropertyValue('--color-brand-text').trim(),
+        borderColor: getComputedStyle(document.documentElement).getPropertyValue('--color-brand-muted').trim(),
+        borderWidth: 1,
+        padding: 10,
+        callbacks: {
+          label: (context) => ` ${context.dataset.label}: R$ ${context.raw.toFixed(2)}`
+        }
+      }
+    },
+    scales: {
+      x: {
+        grid: { display: false },
+        ticks: { color: getComputedStyle(document.documentElement).getPropertyValue('--color-brand-muted').trim(), font: { size: 11 } },
+        border: { display: false }
+      },
+      y: { display: false }
+    },
+    interaction: {
+      mode: 'nearest',
+      axis: 'x',
+      intersect: false
+    }
   };
 
   return (
-    <div style={{ backgroundColor: COLORS.offWhite, minHeight: '100vh', padding: '20px' }}>
-      <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
-        
-        <header style={styles.header}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-            <button onClick={() => navigate('/')} style={styles.backBtn}>
-              <ArrowLeft size={20} color={COLORS.deepCharcoal} />
+    <div className="min-h-screen bg-brand-surface p-4 md:p-8 transition-colors duration-300">
+      <div className="max-w-7xl mx-auto">
+        <header className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+          <div className="flex items-center gap-4">
+            <button onClick={() => navigate('/')} className="bg-brand-card p-2 rounded-xl border border-brand-muted/20 shadow-sm hover:bg-brand-muted/10">
+              <ArrowLeft size={20} className="text-brand-text" />
             </button>
             <div>
-              <h2 style={{ color: COLORS.deepCharcoal, margin: 0 }}>Fluxo de Caixa</h2>
-              <p style={{ color: '#666', margin: 0, fontSize: '14px' }}>Histórico detalhado de entradas e saídas</p>
+              <h2 className="text-2xl font-bold text-brand-text">Fluxo de Caixa</h2>
+              <p className="text-sm text-brand-muted">Análise de performance e histórico</p>
             </div>
+          </div>
+
+          <div className="flex items-center gap-2 bg-brand-card p-2 rounded-xl border border-brand-muted/20 shadow-sm">
+            <Calendar size={18} className="text-brand-muted ml-2" />
+            <input type="date" value={dateRange.start} onChange={(e) => setDateRange(p => ({ ...p, start: e.target.value }))} className="bg-transparent text-brand-text text-sm outline-none p-1" />
+            <span className="text-brand-muted">-</span>
+            <input type="date" value={dateRange.end} onChange={(e) => setDateRange(p => ({ ...p, end: e.target.value }))} className="bg-transparent text-brand-text text-sm outline-none p-1" />
           </div>
         </header>
 
         <FinanceTabs />
 
-        <div style={styles.gridCards}>
-          <StatCard title="Faturamento Bruto" value={stats.total} icon={<DollarSign color="#22c55e"/>} />
-          <StatCard title="Comissões" value={stats.commissions} icon={<Users color="#3b82f6"/>} />
-          <StatCard title="Produtos" value={stats.products} icon={<Package color="#f59e0b"/>} />
-          <StatCard title="Líquido Salão" value={stats.net} icon={<TrendingUp color={COLORS.sageGreen}/>} isHighlight />
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          <StatCard title="Bruto" value={stats.total} icon={<DollarSign className="text-green-500"/>} />
+          <StatCard title="Comissões" value={stats.commissions} icon={<Users className="text-blue-500"/>} />
+          <StatCard title="Produtos" value={stats.products} icon={<Package className="text-amber-500"/>} />
+          <StatCard title="Líquido" value={stats.net} icon={<TrendingUp className="text-brand-primary"/>} isHighlight />
         </div>
 
-        <div style={styles.tableCard}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-            <h3 style={{ margin: 0 }}>Transações Detalhadas</h3>
-            <div style={styles.dateFilter}>
-              <Calendar size={16} /> <span>Últimos 30 dias</span>
-            </div>
+        {/* GRÁFICO DE PERFORMANCE */}
+        <div className="bg-brand-card p-6 rounded-2xl border border-brand-muted/20 shadow-sm mb-8 h-[350px]">
+          <h3 className="text-lg font-bold text-brand-text mb-6">Performance Financeira</h3>
+          <div className="w-full h-[280px]">
+            <Line data={chartConfig} options={chartOptions} />
           </div>
-          
-          <table style={styles.table}>
-            <thead>
-              <tr style={styles.thr}>
-                <th style={styles.th}>Data</th>
-                <th style={styles.th}>Profissional</th>
-                <th style={styles.th}>Tipo</th>
-                <th style={styles.th}>Valor Total</th>
-                <th style={styles.th}>Comissão</th>
-                <th style={styles.th}>Líquido</th>
-              </tr>
-            </thead>
-            <tbody>
-              {transactions.length > 0 ? transactions.map(t => (
-                <tr key={t.id} style={styles.tr}>
-                  <td style={styles.td}>{new Date(t.created_at).toLocaleDateString('pt-BR')}</td>
-                  <td style={styles.td}><strong>{t.professionals?.name || 'Sistema'}</strong></td>
-                  <td style={styles.td}>
-                    <span style={{...styles.badge, backgroundColor: t.type === 'product' ? '#fef3c7' : '#dcfce7'}}>
-                      {t.type === 'service' ? 'Serviço' : 'Produto'}
-                    </span>
-                  </td>
-                  <td style={styles.td}>R$ {t.amount.toFixed(2)}</td>
-                  <td style={{...styles.td, color: '#ef4444'}}>- R$ {t.professional_commission.toFixed(2)}</td>
-                  <td style={{...styles.td, fontWeight: 'bold', color: COLORS.sageGreen}}>
-                    R$ {(t.amount - t.professional_commission).toFixed(2)}
-                  </td>
-                </tr>
-              )) : (
+        </div>
+
+        {/* TABELA DE TRANSAÇÕES */}
+        <div className="bg-brand-card rounded-2xl border border-brand-muted/20 shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead className="bg-brand-surface/50">
                 <tr>
-                  <td colSpan="6" style={{ padding: '40px', textAlign: 'center', color: '#999' }}>Nenhuma transação encontrada.</td>
+                  <th className="p-4 text-xs font-bold text-brand-muted uppercase">Data</th>
+                  <th className="p-4 text-xs font-bold text-brand-muted uppercase">Tipo</th>
+                  <th className="p-4 text-xs font-bold text-brand-muted uppercase">Líquido Salão</th>
                 </tr>
-              )}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-brand-muted/10">
+                {transactions.slice().reverse().map(t => (
+                  <tr key={t.id} className="hover:bg-brand-primary/5 transition-colors">
+                    <td className="p-4 text-sm text-brand-text">{new Date(t.created_at).toLocaleDateString('pt-BR')}</td>
+                    <td className="p-4">
+                      <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase ${t.type === 'service' ? 'bg-green-500/10 text-green-600' : 'bg-amber-500/10 text-amber-600'}`}>
+                        {t.type}
+                      </span>
+                    </td>
+                    <td className="p-4 text-sm font-bold text-brand-primary">R$ {(t.amount - (t.professional_commission || 0)).toFixed(2)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>
@@ -126,28 +231,13 @@ const CashFlow = () => {
 };
 
 const StatCard = ({ title, value, icon, isHighlight }) => (
-  <div style={{...styles.card, borderBottom: isHighlight ? `4px solid ${COLORS.sageGreen}` : 'none'}}>
-    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
-      <span style={{ fontSize: '13px', color: '#666', fontWeight: 'bold', textTransform: 'uppercase' }}>{title}</span>
+  <div className={`bg-brand-card p-6 rounded-2xl border border-brand-muted/20 shadow-sm ${isHighlight ? 'border-b-4 border-b-brand-primary' : ''}`}>
+    <div className="flex justify-between items-start mb-4">
+      <span className="text-xs font-bold text-brand-muted uppercase tracking-wider">{title}</span>
       {icon}
     </div>
-    <h2 style={{ margin: 0, color: COLORS.deepCharcoal }}>R$ {value.toFixed(2)}</h2>
+    <h2 className="text-2xl font-bold text-brand-text">R$ {value.toFixed(2)}</h2>
   </div>
 );
-
-const styles = {
-  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px' },
-  backBtn: { background: 'white', border: 'none', padding: '10px', borderRadius: '12px', cursor: 'pointer', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', display: 'flex' },
-  gridCards: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '20px', marginBottom: '30px' },
-  card: { backgroundColor: 'white', padding: '20px', borderRadius: '16px', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' },
-  dateFilter: { display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', backgroundColor: '#f9f9f9', borderRadius: '8px', fontSize: '13px', color: '#666' },
-  tableCard: { backgroundColor: 'white', padding: '24px', borderRadius: '20px', boxShadow: '0 4px 12px rgba(0,0,0,0.05)', overflowX: 'auto' },
-  table: { width: '100%', borderCollapse: 'collapse', textAlign: 'left' },
-  thr: { borderBottom: `2px solid ${COLORS.offWhite}` },
-  th: { padding: '12px', fontSize: '12px', color: '#888', textTransform: 'uppercase', fontWeight: 'bold' },
-  tr: { borderBottom: `1px solid ${COLORS.offWhite}` },
-  td: { padding: '16px 12px', fontSize: '14px', color: COLORS.deepCharcoal },
-  badge: { padding: '4px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 'bold', color: '#555' }
-};
 
 export default CashFlow;

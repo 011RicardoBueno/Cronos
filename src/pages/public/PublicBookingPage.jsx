@@ -1,172 +1,345 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
-import { MapPin, Info, Clock, Star, ShieldCheck } from 'lucide-react';
-import { COLORS } from '../../constants/dashboard';
-import SalonBooking from '../client/SalonBooking';
+import { MapPin, Clock, CheckCircle, Calendar, User, Scissors, ChevronLeft, Share2, Loader2 } from 'lucide-react';
 import moment from 'moment';
 
 export default function PublicBookingPage() {
   const { slug } = useParams();
   const [salon, setSalon] = useState(null);
+  const [services, setServices] = useState([]);
+  const [professionals, setProfessionals] = useState([]);
   const [loading, setLoading] = useState(true);
+  
+  // Booking State
+  const [step, setStep] = useState(1);
+  const [selectedService, setSelectedService] = useState(null);
+  const [selectedProfessional, setSelectedProfessional] = useState(null);
+  const [selectedDate, setSelectedDate] = useState(moment().format('YYYY-MM-DD'));
+  const [selectedTime, setSelectedTime] = useState(null);
+  const [clientName, setClientName] = useState('');
+  const [clientPhone, setClientPhone] = useState('');
+  const [bookingSuccess, setBookingSuccess] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    async function loadSalon() {
+    async function loadData() {
       try {
-        const { data, error } = await supabase
+        // 1. Fetch Salon
+        const { data: salonData, error: salonError } = await supabase
           .from('salons')
           .select('*')
           .eq('slug', slug)
           .single();
-
-        if (error) throw error;
-        setSalon(data);
         
-        // Atualiza o título da página para o nome do salão
-        document.title = `${data.name} | Agendamento Online`;
-      } catch (err) {
-        console.error("Erro ao carregar salão:", err);
+        if (salonError) throw salonError;
+        setSalon(salonData);
+        document.title = `${salonData.name} | Agendamento`;
+
+        // 2. Fetch Services
+        const { data: servicesData } = await supabase
+          .from('services')
+          .select('*')
+          .eq('salon_id', salonData.id)
+          .order('price');
+        setServices(servicesData || []);
+
+        // 3. Fetch Professionals
+        const { data: prosData } = await supabase
+          .from('professionals')
+          .select('*')
+          .eq('salon_id', salonData.id);
+        setProfessionals(prosData || []);
+
+      } catch (error) {
+        console.error(error);
       } finally {
         setLoading(false);
       }
     }
-    loadSalon();
+    loadData();
   }, [slug]);
 
-  // Lógica para verificar se está aberto agora
-  const isOpen = () => {
-    if (!salon?.opening_time || !salon?.closing_time) return null;
-    const now = moment();
-    const open = moment(salon.opening_time, 'HH:mm');
-    const close = moment(salon.closing_time, 'HH:mm');
-    return now.isBetween(open, close);
+  const handleBooking = async () => {
+    if (!clientName || !clientPhone || !selectedTime) return;
+    
+    setSubmitting(true);
+    try {
+      const startTime = moment(`${selectedDate}T${selectedTime}`).toISOString();
+      
+      const { error } = await supabase.from('slots').insert({
+        salon_id: salon.id,
+        professional_id: selectedProfessional.id,
+        service_id: selectedService.id,
+        client_name: clientName,
+        client_phone: clientPhone,
+        start_time: startTime,
+        status: 'confirmed'
+      });
+
+      if (error) throw error;
+      setBookingSuccess(true);
+    } catch (error) {
+      console.error(error);
+      alert('Erro ao realizar agendamento. Tente novamente.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
+  const generateDates = () => {
+    const dates = [];
+    for(let i=0; i<7; i++) {
+      dates.push(moment().add(i, 'days'));
+    }
+    return dates;
+  };
+
+  const timeSlots = ['09:00', '09:30', '10:00', '10:30', '11:00', '11:30', '13:00', '13:30', '14:00', '14:30', '15:00', '15:30', '16:00', '16:30', '17:00', '17:30', '18:00'];
+
   if (loading) return (
-    <div style={styles.center}>
-      <div className="animate-spin" style={styles.loader}></div>
-      <p>Carregando vitrine...</p>
+    <div className="min-h-screen flex items-center justify-center bg-brand-surface text-brand-muted">
+      <Loader2 className="animate-spin" size={32} />
     </div>
   );
 
   if (!salon) return (
-    <div style={styles.center}>
-      <h2 style={{ color: COLORS.deepCharcoal }}>Página não encontrada</h2>
-      <p>O link pode ter sido alterado ou o salão não está mais disponível.</p>
+    <div className="min-h-screen flex items-center justify-center bg-brand-surface text-brand-text">
+      <p>Salão não encontrado.</p>
     </div>
   );
 
+  if (bookingSuccess) {
+    return (
+      <div className="min-h-screen bg-brand-surface flex items-center justify-center p-4">
+        <div className="bg-brand-card w-full max-w-md p-8 rounded-3xl border border-brand-muted/20 shadow-xl text-center animate-in fade-in zoom-in duration-300">
+          <div className="w-20 h-20 bg-green-500/10 rounded-full flex items-center justify-center mx-auto mb-6">
+            <CheckCircle size={40} className="text-green-500" />
+          </div>
+          <h2 className="text-2xl font-bold text-brand-text mb-2">Agendamento Confirmado!</h2>
+          <p className="text-brand-muted mb-8">Te esperamos em {salon.name}.</p>
+          
+          <div className="bg-brand-surface p-4 rounded-2xl mb-6 text-left border border-brand-muted/10">
+            <div className="flex items-center gap-3 mb-2">
+              <Calendar size={16} className="text-brand-primary" />
+              <span className="text-brand-text font-medium">{moment(selectedDate).format('DD/MM/YYYY')} às {selectedTime}</span>
+            </div>
+            <div className="flex items-center gap-3 mb-2">
+              <Scissors size={16} className="text-brand-primary" />
+              <span className="text-brand-text">{selectedService?.name}</span>
+            </div>
+            <div className="flex items-center gap-3">
+              <User size={16} className="text-brand-primary" />
+              <span className="text-brand-text">{selectedProfessional?.name}</span>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <a 
+              href={`https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent('Agendamento em ' + salon.name)}&dates=${moment(`${selectedDate}T${selectedTime}`).format('YYYYMMDDTHHmmss')}/${moment(`${selectedDate}T${selectedTime}`).add(30, 'minutes').format('YYYYMMDDTHHmmss')}&details=${encodeURIComponent(selectedService?.name)}&location=${encodeURIComponent(salon.address)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center justify-center gap-2 w-full py-3 bg-brand-primary text-white rounded-xl font-bold hover:opacity-90 transition-all"
+            >
+              <Calendar size={18} /> Adicionar ao Calendário
+            </a>
+            <a 
+              href={`https://wa.me/?text=${encodeURIComponent(`Olá, acabei de agendar ${selectedService?.name} para ${moment(selectedDate).format('DD/MM')} às ${selectedTime}!`)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center justify-center gap-2 w-full py-3 bg-[#25D366] text-white rounded-xl font-bold hover:opacity-90 transition-all"
+            >
+              <Share2 size={18} /> Compartilhar no WhatsApp
+            </a>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div style={styles.page}>
-      {/* Banner de Branding */}
-      <div style={styles.heroSection}>
-        <div style={styles.overlay}></div>
+    <div className="min-h-screen bg-brand-surface transition-colors duration-300 pb-24 md:pb-0">
+      {/* HERO SECTION */}
+      <div className="relative h-48 md:h-64 bg-brand-secondary overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent z-10" />
         {salon.logo_url && (
-          <img src={salon.logo_url} alt={salon.name} style={styles.salonLogo} />
+           <img src={salon.logo_url} alt="Cover" className="w-full h-full object-cover opacity-50 blur-sm scale-110" />
+        )}
+        <div className="absolute bottom-0 left-0 p-6 z-20 w-full max-w-3xl mx-auto left-0 right-0">
+          <h1 className="text-3xl md:text-4xl font-bold text-white mb-2">{salon.name}</h1>
+          <div className="flex items-center gap-4 text-white/80 text-sm">
+            <span className="flex items-center gap-1"><MapPin size={14} /> {salon.address}</span>
+            <span className="flex items-center gap-1"><Clock size={14} /> Aberto agora</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="max-w-3xl mx-auto p-4 -mt-6 relative z-30">
+        
+        {/* STEPPER */}
+        <div className="flex items-center justify-between mb-8 px-2">
+          {[1, 2, 3].map((s) => (
+            <div key={s} className="flex flex-col items-center gap-2 relative z-10">
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all duration-300 ${
+                step >= s ? 'bg-brand-primary text-white scale-110' : 'bg-brand-card text-brand-muted border border-brand-muted/20'
+              }`}>
+                {s}
+              </div>
+              <span className={`text-[10px] font-bold uppercase tracking-wider ${step >= s ? 'text-brand-primary' : 'text-brand-muted'}`}>
+                {s === 1 ? 'Serviço' : s === 2 ? 'Profissional' : 'Data'}
+              </span>
+            </div>
+          ))}
+          <div className="absolute top-4 left-4 right-4 h-0.5 bg-brand-muted/10 -z-0" />
+          <div 
+            className="absolute top-4 left-4 h-0.5 bg-brand-primary -z-0 transition-all duration-500" 
+            style={{ width: step === 1 ? '0%' : step === 2 ? '50%' : '100%', right: step === 3 ? '1rem' : 'auto' }} 
+          />
+        </div>
+
+        {/* STEP 1: SERVICES */}
+        {step === 1 && (
+          <div className="space-y-4 animate-in slide-in-from-right-4 duration-300">
+            <h2 className="text-xl font-bold text-brand-text mb-4">Selecione um Serviço</h2>
+            <div className="grid grid-cols-1 gap-4">
+              {services.map(service => (
+                <div 
+                  key={service.id}
+                  onClick={() => { setSelectedService(service); setStep(2); }}
+                  className="bg-brand-card p-4 rounded-2xl border border-brand-muted/20 hover:border-brand-primary cursor-pointer transition-all hover:shadow-md flex justify-between items-center group"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="p-3 bg-brand-surface rounded-xl text-brand-primary group-hover:bg-brand-primary/10 transition-colors">
+                      <Scissors size={24} />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-brand-text">{service.name}</h3>
+                      <p className="text-xs text-brand-muted">{service.duration} min • {service.description || 'Sem descrição'}</p>
+                    </div>
+                  </div>
+                  <span className="font-bold text-brand-primary">R$ {service.price}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* STEP 2: PROFESSIONALS */}
+        {step === 2 && (
+          <div className="space-y-4 animate-in slide-in-from-right-4 duration-300">
+            <button onClick={() => setStep(1)} className="flex items-center gap-1 text-sm text-brand-muted hover:text-brand-text mb-2">
+              <ChevronLeft size={16} /> Voltar
+            </button>
+            <h2 className="text-xl font-bold text-brand-text mb-4">Escolha o Profissional</h2>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+              {professionals.map(pro => (
+                <div 
+                  key={pro.id}
+                  onClick={() => { setSelectedProfessional(pro); setStep(3); }}
+                  className="bg-brand-card p-6 rounded-3xl border border-brand-muted/20 hover:border-brand-primary cursor-pointer transition-all hover:shadow-md flex flex-col items-center text-center group"
+                >
+                  <div className="w-20 h-20 rounded-full bg-brand-surface mb-3 overflow-hidden border-2 border-transparent group-hover:border-brand-primary transition-colors">
+                    {pro.avatar_url ? (
+                      <img src={pro.avatar_url} alt={pro.name} className="w-full h-full object-cover" />
+                    ) : (
+                      <User className="w-full h-full p-4 text-brand-muted" />
+                    )}
+                  </div>
+                  <h3 className="font-bold text-brand-text">{pro.name}</h3>
+                  <p className="text-xs text-brand-muted">{pro.specialty || 'Especialista'}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* STEP 3: DATE & TIME */}
+        {step === 3 && (
+          <div className="space-y-6 animate-in slide-in-from-right-4 duration-300">
+            <button onClick={() => setStep(2)} className="flex items-center gap-1 text-sm text-brand-muted hover:text-brand-text mb-2">
+              <ChevronLeft size={16} /> Voltar
+            </button>
+            
+            {/* Date Picker */}
+            <div>
+              <h2 className="text-lg font-bold text-brand-text mb-3">Data</h2>
+              <div className="flex gap-3 overflow-x-auto pb-2 no-scrollbar">
+                {generateDates().map(date => {
+                  const isSelected = date.format('YYYY-MM-DD') === selectedDate;
+                  return (
+                    <button
+                      key={date.toString()}
+                      onClick={() => setSelectedDate(date.format('YYYY-MM-DD'))}
+                      className={`flex-shrink-0 w-16 h-20 rounded-2xl flex flex-col items-center justify-center gap-1 border transition-all ${
+                        isSelected 
+                        ? 'bg-brand-primary text-white border-brand-primary shadow-lg shadow-brand-primary/20' 
+                        : 'bg-brand-card text-brand-muted border-brand-muted/20 hover:border-brand-primary/50'
+                      }`}
+                    >
+                      <span className="text-xs font-medium uppercase">{date.format('ddd')}</span>
+                      <span className="text-xl font-bold">{date.format('DD')}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Time Grid */}
+            <div>
+              <h2 className="text-lg font-bold text-brand-text mb-3">Horário</h2>
+              <div className="grid grid-cols-4 gap-3">
+                {timeSlots.map(time => (
+                  <button
+                    key={time}
+                    onClick={() => setSelectedTime(time)}
+                    className={`py-2 rounded-xl text-sm font-bold border transition-all ${
+                      selectedTime === time
+                      ? 'bg-brand-primary text-white border-brand-primary'
+                      : 'bg-brand-card text-brand-text border-brand-muted/20 hover:border-brand-primary/50'
+                    }`}
+                  >
+                    {time}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Client Info */}
+            <div className="bg-brand-card p-4 rounded-2xl border border-brand-muted/20 mt-6">
+              <h3 className="font-bold text-brand-text mb-3">Seus Dados</h3>
+              <div className="space-y-3">
+                <input 
+                  type="text" 
+                  placeholder="Seu Nome Completo"
+                  value={clientName}
+                  onChange={e => setClientName(e.target.value)}
+                  className="w-full bg-brand-surface border border-brand-muted/20 rounded-xl p-3 text-brand-text outline-none focus:ring-2 focus:ring-brand-primary/50"
+                />
+                <input 
+                  type="tel" 
+                  placeholder="Seu WhatsApp / Telefone"
+                  value={clientPhone}
+                  onChange={e => setClientPhone(e.target.value)}
+                  className="w-full bg-brand-surface border border-brand-muted/20 rounded-xl p-3 text-brand-text outline-none focus:ring-2 focus:ring-brand-primary/50"
+                />
+              </div>
+            </div>
+          </div>
         )}
       </div>
 
-      <div style={styles.contentWrapper}>
-        <header style={styles.header}>
-          <div style={styles.headerTop}>
-            <h1 style={styles.title}>{salon.name}</h1>
-            <div style={styles.badgeRow}>
-              <span style={{ 
-                ...styles.statusBadge, 
-                backgroundColor: isOpen() ? '#E8F5E9' : '#FFF1F0',
-                color: isOpen() ? '#2E7D32' : '#F5222D'
-              }}>
-                {isOpen() ? 'Aberto agora' : 'Fechado'}
-              </span>
-              <span style={styles.verifiedBadge}>
-                <ShieldCheck size={14} /> Oficial
-              </span>
-            </div>
-          </div>
-
-          <div style={styles.infoGrid}>
-            <p style={styles.infoItem}><MapPin size={16} color={COLORS.sageGreen} /> {salon.address}</p>
-            <p style={styles.infoItem}>
-              <Clock size={16} color={COLORS.sageGreen} /> 
-              {salon.opening_time?.slice(0,5)} às {salon.closing_time?.slice(0,5)}
-            </p>
-          </div>
-
-          {salon.description && (
-            <div style={styles.descriptionBox}>
-               <Info size={16} color={COLORS.deepCharcoal} style={{ flexShrink: 0 }} />
-               <p style={{ margin: 0 }}>{salon.description}</p>
-            </div>
-          )}
-        </header>
-
-        {/* Componente de Agendamento */}
-        <div style={styles.bookingContainer}>
-          <SalonBooking publicMode={true} salonIdFromSlug={salon.id} />
+      {/* MOBILE STICKY FOOTER */}
+      {step === 3 && (
+        <div className="fixed bottom-0 left-0 right-0 p-4 bg-brand-surface border-t border-brand-muted/10 z-40 md:relative md:border-none md:bg-transparent md:p-0 md:mt-8 md:max-w-3xl md:mx-auto">
+          <button 
+            onClick={handleBooking}
+            disabled={!selectedTime || !clientName || !clientPhone || submitting}
+            className="w-full bg-brand-primary text-white py-4 rounded-2xl font-bold text-lg shadow-xl shadow-brand-primary/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+          >
+            {submitting ? <Loader2 className="animate-spin" /> : 'Confirmar Agendamento'}
+          </button>
         </div>
-
-        <footer style={styles.footer}>
-          <p>Powered by <strong>Fluxo SaaS</strong></p>
-        </footer>
-      </div>
-
-      <style>{`
-        @keyframes spin { to { transform: rotate(360deg); } }
-        .animate-spin { animation: spin 1s linear infinite; }
-      `}</style>
+      )}
     </div>
   );
 }
-
-const styles = {
-  page: { minHeight: '100vh', backgroundColor: '#F8F9FA' },
-  heroSection: { 
-    height: '180px', 
-    backgroundColor: COLORS.deepCharcoal, 
-    position: 'relative', 
-    display: 'flex', 
-    justifyContent: 'center', 
-    alignItems: 'flex-end',
-    backgroundImage: 'linear-gradient(45deg, #1a1a1a 25%, #262626 25%, #262626 50%, #1a1a1a 50%, #1a1a1a 75%, #262626 75%, #262626 100%)',
-    backgroundSize: '40px 40px'
-  },
-  overlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, background: 'linear-gradient(transparent, rgba(0,0,0,0.4))' },
-  salonLogo: { 
-    width: '110px', 
-    height: '110px', 
-    borderRadius: '24px', 
-    border: '4px solid white', 
-    backgroundColor: 'white',
-    objectFit: 'cover',
-    marginBottom: '-40px',
-    zIndex: 2,
-    boxShadow: '0 8px 20px rgba(0,0,0,0.12)'
-  },
-  contentWrapper: { maxWidth: '700px', margin: '0 auto', padding: '60px 20px 40px' },
-  header: { textAlign: 'center', marginBottom: '30px' },
-  headerTop: { marginBottom: '15px' },
-  title: { fontSize: '2.2rem', fontWeight: '800', color: COLORS.deepCharcoal, margin: '0 0 10px 0', letterSpacing: '-0.5px' },
-  badgeRow: { display: 'flex', justifyContent: 'center', gap: '10px', marginBottom: '20px' },
-  statusBadge: { padding: '5px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: 'bold' },
-  verifiedBadge: { backgroundColor: '#E3F2FD', color: '#1565C0', padding: '5px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px' },
-  infoGrid: { display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'center', marginBottom: '20px' },
-  infoItem: { margin: 0, color: '#555', fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '8px' },
-  descriptionBox: { 
-    backgroundColor: 'white', 
-    padding: '15px 20px', 
-    borderRadius: '16px', 
-    fontSize: '0.9rem', 
-    color: '#444', 
-    display: 'flex', 
-    alignItems: 'flex-start', 
-    gap: '12px', 
-    textAlign: 'left',
-    boxShadow: '0 2px 8px rgba(0,0,0,0.02)',
-    border: '1px solid #eee'
-  },
-  bookingContainer: { backgroundColor: 'white', borderRadius: '24px', overflow: 'hidden', boxShadow: '0 10px 30px rgba(0,0,0,0.06)' },
-  center: { minHeight: '100vh', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', gap: '15px', padding: '20px', textAlign: 'center' },
-  loader: { width: '40px', height: '40px', border: '4px solid #f3f3f3', borderTop: `4px solid ${COLORS.sageGreen}`, borderRadius: '50%' },
-  footer: { marginTop: '40px', textAlign: 'center', color: '#bbb', fontSize: '12px' }
-};

@@ -1,84 +1,80 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
 
-:root {
-  /* typography / system */
-  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
-  font-weight: 400;
-
-  /* color scheme */
-  color-scheme: light dark;
-  color: #403D39;
-  background-color: #FAFAF9;
-
-  /* theme variables (Tailwind brand tokens use these via tailwind.config.js) */
-  --color-primary: #556B2F;   /* brand primary */
-  --color-secondary: #2C2C2C; /* brand secondary */
-  --color-accent: #D4AF37;    /* brand accent */
-  --color-surface: #F8FAFC;   /* brand surface */
-  --color-text: #1E293B;      /* brand text */
-  --color-muted: #64748B;     /* brand muted */
-
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+@theme {
+  --color-brand-primary: #556B2F;
+  --color-brand-secondary: #2C2C2C;
+  --color-brand-accent: #D4AF37;
+  --color-brand-surface: #F8FAFC;
+  --color-brand-text: #1E293B;
+  --color-brand-muted: #64748B;
+  --color-brand-card: #ffffff;
 }
 
-a {
-  font-weight: 500;
-  color: #646cff;
-  text-decoration: inherit;
+[data-theme='dark'] {
+  --color-brand-surface: #121212;
+  --color-brand-text: #F1F5F9;
+  --color-brand-muted: #94A3B8;
+  --color-brand-primary: #8DA06B;
+  --color-brand-card: #1E1E1E;
 }
-a:hover {
-  color: #535bf2;
-}
-
-html, body, #root {
-  height: 100%;
-}
-
-body {
-  margin: 0;
-  min-width: 320px;
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-}
-
-h1 {
-  font-size: 3.2em;
-  line-height: 1.1;
-}
-
-button {
-  border-radius: 8px;
-  border: 1px solid transparent;
-  padding: 0.6em 1.2em;
-  font-size: 1em;
-  font-weight: 500;
-  font-family: inherit;
-  background-color: #1a1a1a;
-  cursor: pointer;
-  transition: border-color 0.25s;
-}
-button:hover {
-  border-color: #646cff;
-}
-button:focus,
-button:focus-visible {
-  outline: 4px auto -webkit-focus-ring-color;
-}
-
-@media (prefers-color-scheme: light) {
-  :root {
-    color: #213547;
-    background-color: #ffffff;
+@layer base {
+  /* Remove as margens, padding e a largura máxima do container do Vite */
+  #root {
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    text-align: left !important;
+    width: 100%;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
   }
-  a:hover {
-    color: #747bff;
+
+  /* Garante que o body use a cor do seu tema v4 */
+  body {
+    margin: 0;
+    background-color: var(--color-brand-surface);
+    color: var(--color-brand-text);
+    min-height: 100vh;
   }
-  button {
-    background-color: #f9f9f9;
+}
+
+@layer components {
+  /* Reset de Células da Agenda */
+  .rbc-calendar, .fc { 
+    @apply !text-brand-text !bg-brand-card !rounded-2xl !border-none;
+  }
+
+  /* Células de tempo e dias */
+  .rbc-day-bg, .rbc-month-view, .rbc-time-view, .fc-td {
+    @apply !border-brand-muted/10;
+    background-color: var(--color-brand-card) !important;
+  }
+
+  /* Slots de horário (as células individuais) */
+  .rbc-time-slot, .rbc-timeslot-group {
+    border-bottom: 1px solid color-mix(in srgb, var(--color-brand-muted), transparent 90%) !important;
+  }
+
+  /* Cabeçalhos dos dias */
+  .rbc-header {
+    @apply !py-3 !font-bold !text-brand-muted !border-brand-muted/10;
+    background-color: var(--color-brand-surface) !important;
+  }
+
+  /* Estilização do Evento (O "Card" do agendamento) */
+  .rbc-event {
+    @apply !bg-brand-primary !text-white !border-none !rounded-lg !shadow-sm;
+    padding: 2px 8px !important;
+  }
+
+  /* Highlight do dia atual */
+  .rbc-today {
+    background-color: color-mix(in srgb, var(--color-brand-primary), transparent 95%) !important;
+  }
+
+  /* Barra lateral de horários */
+  .rbc-time-gutter .rbc-timeslot-group {
+    @apply !text-xs !text-brand-muted !border-none;
   }
 }

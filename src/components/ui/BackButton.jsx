@@ -1,41 +1,20 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
+import { ArrowLeft } from 'lucide-react';
 
-const BackButton = ({ colors, destination = "/" }) => {
+export default function BackButton() {
   const navigate = useNavigate();
 
   return (
-    <button 
-      onClick={() => navigate(destination)} 
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: "8px",
-        background: "white",
-        border: `1px solid ${colors.warmSand}`,
-        color: colors.deepCharcoal,
-        cursor: "pointer",
-        marginBottom: "20px",
-        padding: "8px 16px",
-        borderRadius: "8px",
-        fontSize: "14px",
-        fontWeight: "600",
-        transition: "all 0.2s ease",
-        boxShadow: "0 2px 4px rgba(0,0,0,0.05)",
-      }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.backgroundColor = colors.warmSand;
-        e.currentTarget.style.transform = "translateX(-4px)";
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.backgroundColor = "white";
-        e.currentTarget.style.transform = "translateX(0)";
-      }}
+    <button
+      onClick={() => navigate(-1)}
+      className="flex items-center gap-2 px-4 py-2 rounded-xl text-brand-muted hover:text-brand-primary hover:bg-brand-primary/10 transition-all duration-200 group mb-4"
     >
-      <span style={{ fontSize: "18px" }}>←</span> 
-      Voltar para o Painel
+      <ArrowLeft 
+        size={20} 
+        className="transition-transform group-hover:-translate-x-1" 
+      />
+      <span className="font-medium">Voltar</span>
     </button>
   );
-};
-
-export default BackButton;
+}

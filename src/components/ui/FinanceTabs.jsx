@@ -1,6 +1,5 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { COLORS } from '../../constants/dashboard';
 import { ReceiptText, BarChart3 } from 'lucide-react';
 
 const FinanceTabs = () => {
@@ -23,19 +22,19 @@ const FinanceTabs = () => {
   ];
 
   return (
-    <div style={styles.container}>
+    <div className="flex gap-2 mb-6 border-b border-brand-muted/10 px-2">
       {tabs.map((tab) => {
         const isActive = location.pathname === tab.path;
         return (
           <button
             key={tab.id}
             onClick={() => navigate(tab.path)}
-            style={{
-              ...styles.tab,
-              color: isActive ? COLORS.sageGreen : '#666',
-              borderBottom: isActive ? `3px solid ${COLORS.sageGreen}` : '3px solid transparent',
-              backgroundColor: isActive ? '#f0f4f1' : 'transparent',
-            }}
+            className={`
+              flex items-center gap-2 px-5 py-3 border-b-2 transition-all duration-200 font-semibold text-sm rounded-t-lg
+              ${isActive 
+                ? 'border-brand-primary text-brand-primary bg-brand-primary/5' 
+                : 'border-transparent text-brand-muted hover:text-brand-text hover:bg-brand-muted/5'}
+            `}
           >
             {tab.icon}
             {tab.label}
@@ -45,27 +44,4 @@ const FinanceTabs = () => {
     </div>
   );
 };
-
-const styles = {
-  container: {
-    display: 'flex',
-    gap: '10px',
-    marginBottom: '25px',
-    borderBottom: '1px solid #eee',
-    padding: '0 10px'
-  },
-  tab: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '8px',
-    padding: '12px 20px',
-    border: 'none',
-    cursor: 'pointer',
-    fontSize: '14px',
-    fontWeight: '600',
-    transition: 'all 0.2s ease',
-    borderRadius: '8px 8px 0 0',
-  }
-};
-
 export default FinanceTabs;
