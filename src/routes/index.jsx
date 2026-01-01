@@ -9,7 +9,7 @@ import Login from '../pages/Login';
 import SalonSetup from '../components/salon/SalonSetup';
 import Schedule from '../pages/agenda/Schedule'; // Antigo Agenda
 import Services from '../pages/services/Services'; // Antigo Servicos
-import Products from '../pages/products/Produtos'; // Antigo Produtos
+import Products from '../pages/products/Products'; // Antigo Produtos
 import Professionals from '../pages/professionals/Professionals'; // Antigo Profissionais
 import Settings from '../pages/settings/Settings'; // Antigo Configuracoes
 import Clients from '../pages/customers/Clients';

@@ -6,7 +6,7 @@ import { COLORS } from '../../constants/dashboard';
 import BackButton from '../../components/ui/BackButton';
 import { Package, Plus, Trash2, AlertCircle } from 'lucide-react';
 
-const Produtos = () => {
+const Products = () => {
   const { salon } = useSalon();
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -180,4 +180,4 @@ const styles = {
   prodPrice: { fontWeight: '800' }
 };
 
-export default Produtos;
+export default Products;

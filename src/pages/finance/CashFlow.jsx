@@ -6,7 +6,7 @@ import { DollarSign, TrendingUp, Users, Package, Calendar, ArrowLeft } from 'luc
 import FinanceTabs from '../../components/ui/FinanceTabs';
 import { useNavigate } from 'react-router-dom';
 
-const FluxoCaixa = () => {
+const CashFlow = () => {
   const { salon } = useSalon();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
@@ -149,4 +149,4 @@ const styles = {
   badge: { padding: '4px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 'bold', color: '#555' }
 };
 
-export default FluxoCaixa;
+export default CashFlow;
