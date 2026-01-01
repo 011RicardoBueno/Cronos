@@ -5,7 +5,7 @@ import { supabase } from '../../lib/supabase';
 import { useSalon } from '../../context/SalonContext';
 import moment from 'moment';
 
-const StatCard = ({ label, value, icon: Icon, trend, color, loading }) => (
+const StatCard = ({ label, value, icon, trend, color, loading }) => (
   <div style={{
     backgroundColor: 'white',
     padding: '20px',
@@ -17,7 +17,7 @@ const StatCard = ({ label, value, icon: Icon, trend, color, loading }) => (
     flex: '1'
   }}>
     <div style={{ backgroundColor: `${color}15`, padding: '12px', borderRadius: '12px', color: color }}>
-      <Icon size={24} />
+      {React.isValidElement(icon) ? icon : (icon ? React.createElement(icon, { size: 24 }) : null)}
     </div>
     <div style={{ flex: 1 }}>
       <p style={{ margin: 0, color: '#666', fontSize: '0.85rem', fontWeight: '500' }}>{label}</p>

@@ -33,7 +33,7 @@ export default function LogoUpload({ salonId, currentLogo, onUploadSuccess }) {
       const filePath = `${salonId}/logo.webp`;
 
       // 3. Upload para o Supabase Storage
-      const { data, error: uploadError } = await supabase.storage
+      const { data: _uploadData, error: uploadError } = await supabase.storage
         .from('logos')
         .upload(filePath, compressedFile, { 
           upsert: true,

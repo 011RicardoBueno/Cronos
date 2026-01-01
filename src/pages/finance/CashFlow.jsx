@@ -9,34 +9,35 @@ import { useNavigate } from 'react-router-dom';
 const CashFlow = () => {
   const { salon } = useSalon();
   const navigate = useNavigate();
-  const [loading, setLoading] = useState(true);
+  const [_loading, setLoading] = useState(true);
   const [transactions, setTransactions] = useState([]);
   const [stats, setStats] = useState({ total: 0, commissions: 0, products: 0, net: 0 });
 
   useEffect(() => {
-    if (salon?.id) fetchFinanceData();
+    if (!salon?.id) return;
+
+    const fetchFinanceData = async () => {
+      try {
+        setLoading(true);
+        const { data, error } = await supabase
+          .from('finance_transactions')
+          .select(`*, professionals(name)`) 
+          .eq('salon_id', salon.id)
+          .order('created_at', { ascending: false });
+
+        if (error) throw error;
+
+        setTransactions(data || []);
+        calculateStats(data || []);
+      } catch (err) {
+        console.error("Erro financeiro:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchFinanceData();
   }, [salon?.id]);
-
-  const fetchFinanceData = async () => {
-    try {
-      setLoading(true);
-      const { data, error } = await supabase
-        .from('finance_transactions')
-        .select(`*, professionals(name)`)
-        .eq('salon_id', salon.id)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-
-      setTransactions(data || []);
-      calculateStats(data || []);
-    } catch (err) {
-      console.error("Erro financeiro:", err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const calculateStats = (data) => {
     const totals = data.reduce((acc, curr) => {
       acc.total += curr.amount;

@@ -75,6 +75,7 @@ const SalonSetup = ({ onComplete }) => {
           setFormData(prev => ({ ...prev, logradouro: autoAddress }));
         }
       } catch (err) {
+        console.error(err);
         setSubmitError('Erro ao buscar CEP.');
       } finally {
         setCepLoading(false);
@@ -120,6 +121,7 @@ const SalonSetup = ({ onComplete }) => {
       
       if (onComplete) onComplete();
     } catch (err) {
+      console.error(err);
       setSubmitError(err.message || 'Erro ao salvar as configurações.');
     }
   };

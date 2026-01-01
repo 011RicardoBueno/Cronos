@@ -22,7 +22,7 @@ export default function Agenda() {
 
   const { 
     slotsByProfessional, 
-    loadingSlots, 
+    loadingSlots: _loadingSlots, 
     loadProfessionalSlots, 
     updateSlotsAfterDelete, 
     updateSlotsAfterMove 
@@ -36,6 +36,7 @@ export default function Agenda() {
       const [hours, minutes] = timeString.split(':');
       return baseDate.clone().set({ hour: parseInt(hours), minute: parseInt(minutes), second: 0 }).toDate();
     } catch (err) {
+      console.error(err);
       return moment(currentViewDate).startOf('day').set({ hour: fallbackHour }).toDate();
     }
   };
@@ -80,6 +81,7 @@ export default function Agenda() {
       updateSlotsAfterDelete(selectedSlot.professional_id, selectedSlot.id);
       setIsDetailModalOpen(false);
     } catch (err) {
+      console.error(err);
       alert("Erro ao deletar");
     } finally {
       setIsProcessing(false);
@@ -91,6 +93,7 @@ export default function Agenda() {
       await updateSlotTime(slotId, newStart);
       updateSlotsAfterMove(profId, slotId, newStart.toISOString());
     } catch (err) {
+      console.error(err);
       alert("Erro ao mover");
     }
   };

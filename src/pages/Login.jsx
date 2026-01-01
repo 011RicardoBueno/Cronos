@@ -71,7 +71,7 @@ const Login = () => {
 
         const finalEmail = email.trim() || `${cleanPhone}@fluxo.com`;
 
-        const { data, error: signUpError } = await supabase.auth.signUp({
+        const { data: _data, error: signUpError } = await supabase.auth.signUp({
           email: finalEmail,
           password,
           options: {
@@ -116,6 +116,7 @@ const Login = () => {
         else navigate('/agendamento-cliente');
       }
     } catch (err) {
+      console.error(err);
       setError(err.message === 'User already registered' ? 'Este telefone ou e-mail já está cadastrado.' : err.message);
     } finally {
       setIsSubmitting(false);

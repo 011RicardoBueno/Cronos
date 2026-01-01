@@ -8,7 +8,7 @@ import { COLORS } from '../constants/dashboard';
 import { LayoutGrid } from 'lucide-react'; // Importe para o ícone do título
 
 export default function Dashboard() {
-  const { salon, loading, error } = useSalon();
+  const { loading, error } = useSalon();
 
   if (loading) {
     return (

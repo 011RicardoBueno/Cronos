@@ -27,7 +27,7 @@ export default function Analytics() {
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
 
   const isBeta = true; 
-  const hasProAccess = isBeta || salon?.plan_type === 'pro';
+  const _hasProAccess = isBeta || salon?.plan_type === 'pro';
 
   useEffect(() => {
     if (salon?.id && professionals?.length) {

@@ -38,6 +38,7 @@ export default function Servicos() {
       setIsAdding(false);
       await refreshSalon(); // Atualiza o SalonContext global
     } catch (err) {
+      console.error(err);
       alert("Erro ao salvar serviço: " + err.message);
     } finally {
       setSaving(false);
@@ -55,6 +56,7 @@ export default function Servicos() {
       if (error) throw error;
       await refreshSalon();
     } catch (err) {
+      console.error(err);
       alert("Erro ao eliminar serviço: " + err.message);
     }
   };

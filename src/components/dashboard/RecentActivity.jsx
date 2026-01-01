@@ -11,7 +11,7 @@ export default function RecentActivity() {
   const [loading, setLoading] = useState(true);
   const [updatingId, setUpdatingId] = useState(null);
 
-  const fetchRecentSlots = async () => {
+  const fetchRecentSlots = React.useCallback(async () => {
     if (!professionals?.length) {
       setLoading(false);
       return;
@@ -38,11 +38,11 @@ export default function RecentActivity() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [professionals]);
 
   useEffect(() => {
     fetchRecentSlots();
-  }, [professionals]);
+  }, [professionals, fetchRecentSlots]);
 
   const getTimeBadge = (startTime) => {
     const diff = moment(startTime).diff(moment(), 'minutes');
@@ -66,6 +66,7 @@ export default function RecentActivity() {
           : prev.map(s => s.id === slotId ? { ...s, status: newStatus } : s)
       );
     } catch (err) {
+      console.error(err);
       alert("Erro ao atualizar status.");
     } finally {
       setUpdatingId(null);

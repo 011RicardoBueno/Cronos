@@ -18,7 +18,7 @@ const Products = () => {
     stock_quantity: ''
   });
 
-  const loadProducts = async () => {
+  const loadProducts = React.useCallback(async () => {
     if (!salon?.id) return;
     try {
       setLoading(true);
@@ -29,11 +29,11 @@ const Products = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [salon?.id]);
 
   useEffect(() => {
     loadProducts();
-  }, [salon?.id]);
+  }, [salon?.id, loadProducts]);
 
   const handleAddProduct = async (e) => {
     e.preventDefault();
@@ -67,6 +67,7 @@ const Products = () => {
       setFormData({ name: '', price: '', commission_rate: '10', stock_quantity: '' });
       await loadProducts();
     } catch (err) {
+      console.error(err);
       alert('Erro ao cadastrar produto: ' + err.message);
     } finally {
       setIsAdding(false);

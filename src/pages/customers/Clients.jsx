@@ -22,54 +22,56 @@ export default function Clients() {
   const [loadingHistory, setLoadingHistory] = useState(false);
 
   useEffect(() => {
-    if (salon?.id) fetchClients();
-  }, [salon]);
+    if (!salon?.id) return;
 
-  const fetchClients = async () => {
-    try {
-      setLoading(true);
-      const { data, error } = await supabase
-        .from('slots')
-        .select(`
-          client_name, 
-          client_phone, 
-          start_time, 
-          finance_transactions (amount, type)
-        `)
-        .eq('salon_id', salon.id)
-        .order('start_time', { ascending: false });
+    const fetchClients = async () => {
+      try {
+        setLoading(true);
+        const { data, error } = await supabase
+          .from('slots')
+          .select(`
+            client_name, 
+            client_phone, 
+            start_time, 
+            finance_transactions (amount, type)
+          `)
+          .eq('salon_id', salon.id)
+          .order('start_time', { ascending: false });
 
-      if (error) throw error;
+        if (error) throw error;
 
-      const clientMap = data.reduce((acc, curr) => {
-        if (!curr.client_phone) return acc;
-        const key = curr.client_phone;
-        const amountPaid = curr.finance_transactions?.reduce((sum, trans) => {
-          return trans.type !== 'advance' ? sum + Number(trans.amount) : sum;
-        }, 0) || 0;
+        const clientMap = data.reduce((acc, curr) => {
+          if (!curr.client_phone) return acc;
+          const key = curr.client_phone;
+          const amountPaid = curr.finance_transactions?.reduce((sum, trans) => {
+            return trans.type !== 'advance' ? sum + Number(trans.amount) : sum;
+          }, 0) || 0;
 
-        if (!acc[key]) {
-          acc[key] = {
-            name: curr.client_name || "Cliente Sem Nome",
-            phone: curr.client_phone,
-            totalVisits: 0,
-            totalSpent: 0,
-            lastVisit: curr.start_time,
-          };
-        }
-        acc[key].totalVisits += 1;
-        acc[key].totalSpent += amountPaid;
-        return acc;
-      }, {});
+          if (!acc[key]) {
+            acc[key] = {
+              name: curr.client_name || "Cliente Sem Nome",
+              phone: curr.client_phone,
+              totalVisits: 0,
+              totalSpent: 0,
+              lastVisit: curr.start_time,
+            };
+          }
+          acc[key].totalVisits += 1;
+          acc[key].totalSpent += amountPaid;
+          return acc;
+        }, {});
 
-      const sortedClients = Object.values(clientMap).sort((a, b) => b.totalSpent - a.totalSpent);
-      setClients(sortedClients);
-    } catch (err) {
-      console.error("Erro ao carregar clientes:", err);
-    } finally {
-      setLoading(false);
-    }
-  };
+        const sortedClients = Object.values(clientMap).sort((a, b) => b.totalSpent - a.totalSpent);
+        setClients(sortedClients);
+      } catch (err) {
+        console.error("Erro ao carregar clientes:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchClients();
+  }, [salon?.id]);
 
   // Função para buscar o histórico quando clicar no card
   const handleOpenHistory = async (client) => {

@@ -40,6 +40,7 @@ const ClientOnboarding = ({ user, onComplete }) => {
 
       onComplete(); 
     } catch (err) {
+      console.error(err);
       alert("Erro ao salvar seus dados: " + err.message);
     } finally {
       setLoading(false);

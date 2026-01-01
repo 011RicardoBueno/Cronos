@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import moment from 'moment';
 import { COLORS } from '../constants/dashboard';
 
@@ -10,16 +10,16 @@ export default function ProfessionalSlotForm({ services, onSubmit, initialDate, 
     end_time: ''
   });
 
-  // Cálculo automático da hora de término baseado na duração do serviço
-  useEffect(() => {
+  // Cálculo automático da hora de término baseado na duração do serviço (derivado, sem setState em effect)
+  const computedEndTime = useMemo(() => {
     if (formData.service_id && formData.start_time) {
       const selectedService = services.find(s => s.id === formData.service_id);
       if (selectedService) {
         const duration = selectedService.duration_minutes || 30; // 30min padrão se não houver
-        const endTime = moment(formData.start_time).add(duration, 'minutes').format('YYYY-MM-DDTHH:mm');
-        setFormData(prev => ({ ...prev, end_time: endTime }));
+        return moment(formData.start_time).add(duration, 'minutes').format('YYYY-MM-DDTHH:mm');
       }
     }
+    return '';
   }, [formData.service_id, formData.start_time, services]);
 
   const handleSubmit = (e) => {
@@ -48,7 +48,7 @@ export default function ProfessionalSlotForm({ services, onSubmit, initialDate, 
     onSubmit({
       ...formData,
       start_time: new Date(formData.start_time).toISOString(),
-      end_time: new Date(formData.end_time).toISOString(),
+      end_time: new Date(computedEndTime).toISOString(),
     });
   };
 
@@ -101,7 +101,7 @@ export default function ProfessionalSlotForm({ services, onSubmit, initialDate, 
       <input
         type="datetime-local"
         style={{ ...inputStyle, backgroundColor: '#f9f9f9' }}
-        value={formData.end_time}
+        value={computedEndTime}
         readOnly
       />
 

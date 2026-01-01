@@ -12,6 +12,12 @@ const CheckoutModal = ({ isOpen, onClose, slot, onComplete }) => {
   const [selectedProducts, setSelectedProducts] = useState([]);
   const [advanceAmount, setAdvanceAmount] = useState(0);
 
+  const loadProducts = React.useCallback(async () => {
+    if (!slot?.salon_id) return;
+    const data = await fetchProducts(slot.salon_id);
+    setAllProducts(data || []);
+  }, [slot?.salon_id]);
+
   useEffect(() => {
     if (isOpen && slot) {
       loadProducts();
@@ -19,13 +25,7 @@ const CheckoutModal = ({ isOpen, onClose, slot, onComplete }) => {
       setSelectedProducts([]);
       setAdvanceAmount(0);
     }
-  }, [isOpen, slot]);
-
-  const loadProducts = async () => {
-    if (!slot?.salon_id) return;
-    const data = await fetchProducts(slot.salon_id);
-    setAllProducts(data || []);
-  };
+  }, [isOpen, slot, loadProducts]);
 
   const addProduct = (prod) => {
     setSelectedProducts([...selectedProducts, { 

@@ -61,6 +61,7 @@ export default function Configuracoes() {
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     } catch (err) {
+      console.error(err);
       alert('Erro ao atualizar: ' + err.message);
     } finally {
       setLoading(false);

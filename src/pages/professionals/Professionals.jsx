@@ -37,6 +37,7 @@ const Profissionais = () => {
       await refreshSalon(); 
       alert('Profissional cadastrado com sucesso!');
     } catch (err) {
+      console.error(err);
       alert('Erro ao cadastrar: ' + err.message);
     } finally {
       setIsAdding(false);
@@ -50,6 +51,7 @@ const Profissionais = () => {
       if (error) throw error;
       await refreshSalon();
     } catch (err) {
+      console.error(err);
       alert("Erro ao excluir: " + err.message);
     }
   };

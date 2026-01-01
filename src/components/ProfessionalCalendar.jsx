@@ -88,25 +88,25 @@ export default function ProfessionalCalendar({
     return processed;
   }, [slots]);
 
-  const isSlotConflict = (start, end, excludeId) => {
+  const isSlotConflict = useCallback((start, end, excludeId) => {
     return events.some(event => {
       if (event.id === excludeId) return false;
       return start < event.end && end > event.start;
     });
-  };
+  }, [events]);
 
   const onEventDrop = useCallback(({ event, start, end }) => {
     const now = new Date();
     if (start < now) {
-      alert("Operação inválida: Não é possível mover agendamentos para o passado.");
+      console.error(new Error('Tentativa de mover para o passado')); alert("Operação inválida: Não é possível mover agendamentos para o passado.");
       return;
     }
     if (event.start < now) {
-      alert("Não é permitido mover agendamentos que já foram realizados.");
+      console.error(new Error('Tentativa de mover agendamento já realizado')); alert("Não é permitido mover agendamentos que já foram realizados.");
       return;
     }
     if (isSlotConflict(start, end, event.id)) {
-      alert("Conflito de agenda: Já existe um agendamento neste horário.");
+      console.error(new Error('Conflito de agenda ao mover evento')); alert("Conflito de agenda: Já existe um agendamento neste horário.");
       return;
     }
 
@@ -115,7 +115,7 @@ export default function ProfessionalCalendar({
       newStart: start,
       newEnd: end
     });
-  }, [handleMoveSlot, events]);
+  }, [handleMoveSlot, isSlotConflict]);
 
   const eventStyleGetter = (event) => {
     const isPast = event.start < new Date();

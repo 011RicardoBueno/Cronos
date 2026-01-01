@@ -35,6 +35,7 @@ export default function ExpenseModal({ isOpen, onClose, salonId, onSuccess }) {
       onClose();
       setFormData({ description: '', amount: '', category: 'Produtos', date: new Date().toISOString().split('T')[0] });
     } catch (err) {
+      console.error(err);
       alert('Erro ao salvar despesa: ' + err.message);
     } finally {
       setLoading(false);

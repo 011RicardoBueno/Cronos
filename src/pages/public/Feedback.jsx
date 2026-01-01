@@ -70,6 +70,7 @@ export default function Feedback() {
       if (error) throw error;
       setSubmitted(true);
     } catch (err) {
+      console.error(err);
       alert("Houve um problema ao salvar sua avaliação. Tente novamente.");
     }
   };

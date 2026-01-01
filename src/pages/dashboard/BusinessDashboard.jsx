@@ -34,64 +34,66 @@ export default function BusinessDashboard() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (salon?.id) fetchAnalytics();
-  }, [salon]);
+    if (!salon?.id) return;
 
-  const fetchAnalytics = async () => {
-    try {
-      setLoading(true);
-      const { data, error } = await supabase
-        .from('finance_transactions')
-        .select(`
-          amount, type,
-          slots (client_phone, services (name))
-        `)
-        .eq('salon_id', salon.id);
+    const fetchAnalytics = async () => {
+      try {
+        setLoading(true);
+        const { data, error } = await supabase
+          .from('finance_transactions')
+          .select(`
+            amount, type,
+            slots (client_phone, services (name))
+          `)
+          .eq('salon_id', salon.id);
 
-      if (error) throw error;
+        if (error) throw error;
 
-      // Cálculos Financeiros
-      const total = data.reduce((acc, t) => acc + Number(t.amount), 0);
-      const serviceVal = data.filter(t => t.type === 'service').reduce((acc, t) => acc + Number(t.amount), 0);
-      const productVal = data.filter(t => t.type === 'product').reduce((acc, t) => acc + Number(t.amount), 0);
-      
-      const uniqueSlots = [...new Set(data.map(t => t.slot_id))].length;
-      const ticket = total / (uniqueSlots || 1);
+        // Cálculos Financeiros
+        const total = data.reduce((acc, t) => acc + Number(t.amount), 0);
+        const serviceVal = data.filter(t => t.type === 'service').reduce((acc, t) => acc + Number(t.amount), 0);
+        const productVal = data.filter(t => t.type === 'product').reduce((acc, t) => acc + Number(t.amount), 0);
+        
+        const uniqueSlots = [...new Set(data.map(t => t.slot_id))].length;
+        const ticket = total / (uniqueSlots || 1);
 
-      // Lógica do Gráfico para Chart.js
-      const serviceMap = data.reduce((acc, t) => {
-        if (t.type === 'service' && t.slots?.services?.name) {
-          const name = t.slots.services.name;
-          acc[name] = (acc[name] || 0) + Number(t.amount);
-        }
-        return acc;
-      }, {});
+        // Lógica do Gráfico para Chart.js
+        const serviceMap = data.reduce((acc, t) => {
+          if (t.type === 'service' && t.slots?.services?.name) {
+            const name = t.slots.services.name;
+            acc[name] = (acc[name] || 0) + Number(t.amount);
+          }
+          return acc;
+        }, {});
 
-      setChartData({
-        labels: Object.keys(serviceMap),
-        datasets: [{
-          label: 'Faturamento por Serviço',
-          data: Object.values(serviceMap),
-          backgroundColor: COLORS.sageGreen,
-          borderRadius: 8,
-          borderSkipped: false,
-        }]
-      });
+        setChartData({
+          labels: Object.keys(serviceMap),
+          datasets: [{
+            label: 'Faturamento por Serviço',
+            data: Object.values(serviceMap),
+            backgroundColor: COLORS.sageGreen,
+            borderRadius: 8,
+            borderSkipped: false,
+          }]
+        });
 
-      setMetrics({
-        totalRevenue: total,
-        ticketMedio: ticket,
-        retentionRate: 75, // Simulado baseado no script de dummy data
-        serviceRevenue: serviceVal,
-        productRevenue: productVal
-      });
+        setMetrics({
+          totalRevenue: total,
+          ticketMedio: ticket,
+          retentionRate: 75, // Simulado baseado no script de dummy data
+          serviceRevenue: serviceVal,
+          productRevenue: productVal
+        });
 
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchAnalytics();
+  }, [salon?.id]);
 
   // Configurações do Gráfico
   const chartOptions = {
