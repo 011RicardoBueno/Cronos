@@ -1,14 +1,12 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { Home, Calendar, Users, DollarSign, Box, Settings, Moon, Sun, X } from 'lucide-react';
-import { useTheme } from '../../hooks/useTheme';
+import { Home, Calendar, Users, DollarSign, Box, Settings, X } from 'lucide-react';
 
 export default function Sidebar({ isOpen, onClose }) {
-  const { theme, toggleTheme } = useTheme();
-
   const links = [
     { to: '/', label: 'Dashboard', icon: <Home size={18} /> },
     { to: '/agenda', label: 'Agenda', icon: <Calendar size={18} /> },
+    { to: '/profissionais', label: 'Profissionais', icon: <Users size={18} /> },
     { to: '/admin/clientes', label: 'Clientes', icon: <Users size={18} /> },
     { to: '/financeiro', label: 'Financeiro', icon: <DollarSign size={18} /> },
     { to: '/produtos', label: 'Produtos', icon: <Box size={18} /> },
@@ -43,7 +41,7 @@ export default function Sidebar({ isOpen, onClose }) {
               key={to}
               to={to}
               end={to === '/'}
-              onClick={() => setIsSidebarOpen(false)} // Fecha ao clicar no mobile
+              onClick={onClose} // Fecha ao clicar no mobile
               className={({ isActive }) => `
                 flex items-center gap-3 p-3 rounded-xl transition-all duration-200
                 ${isActive 
@@ -57,24 +55,6 @@ export default function Sidebar({ isOpen, onClose }) {
           ))}
         </nav>
 
-        <div className="p-4 border-t border-brand-muted/10">
-          <button
-            onClick={toggleTheme}
-            className="flex items-center gap-3 w-full p-3 rounded-xl text-brand-text hover:bg-brand-primary/10 transition-all duration-200"
-          >
-            {theme === 'light' ? (
-              <>
-                <Moon size={18} className="text-brand-muted" />
-                <span className="text-sm font-medium">Modo Escuro</span>
-              </>
-            ) : (
-              <>
-                <Sun size={18} className="text-brand-accent" />
-                <span className="text-sm font-medium">Modo Claro</span>
-              </>
-            )}
-          </button>
-        </div>
       </aside>
     </>
   );

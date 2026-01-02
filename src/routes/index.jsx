@@ -2,6 +2,7 @@ import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useSalon } from '../context/SalonContext';
+import { Toaster } from 'react-hot-toast';
 
 // --- GESTÃO E ADMINISTRAÇÃO ---
 import BusinessDashboard from '../pages/dashboard/BusinessDashboard'; 
@@ -11,7 +12,7 @@ import Schedule from '../pages/agenda/Schedule'; // Antigo Agenda
 import Services from '../pages/services/Services'; // Antigo Servicos
 import Products from '../pages/products/Products'; // Antigo Produtos
 import Professionals from '../pages/professionals/Professionals'; // Antigo Profissionais
-import Settings from '../pages/settings/Settings'; // Antigo Configuracoes
+import Settings from '../pages/admin/Settings'; // Antigo Configuracoes
 import DashboardLayout from '../components/layout/DashboardLayout';
 import Clients from '../pages/customers/Clients';
 import QueueDisplay from '../pages/customers/QueueDisplay';
@@ -42,7 +43,15 @@ export const AppRoutes = () => {
   }
 
   return (
-    <Routes>
+    <>
+      <Toaster 
+        position="top-right" 
+        toastOptions={{
+          style: { background: '#1f2937', color: '#fff', borderRadius: '12px' },
+          success: { duration: 5000 }
+        }}
+      />
+      <Routes>
       {/* ROTA DE LOGIN */}
       <Route path="/login" element={!session ? <Login /> : <Navigate to="/" replace />} />
       
@@ -98,7 +107,8 @@ export const AppRoutes = () => {
           )}
         </>
       )}
-    </Routes>
+      </Routes>
+    </>
   );
 };
 

@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useSalon } from '../../context/SalonContext';
+import toast from 'react-hot-toast';
 import { 
-  DollarSign, TrendingUp, Users, ArrowUpRight, Award 
+  DollarSign, TrendingUp, Users, ArrowUpRight, Award, Calendar
 } from 'lucide-react';
 
 // Importações do Chart.js
@@ -31,6 +32,7 @@ export default function BusinessDashboard() {
   });
   const [chartData, setChartData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [recentAppointments, setRecentAppointments] = useState([]);
 
   useEffect(() => {
     if (!salon?.id) return;
@@ -92,6 +94,59 @@ export default function BusinessDashboard() {
     };
 
     fetchAnalytics();
+  }, [salon?.id]);
+
+  // Realtime Notifications & Recent Appointments
+  useEffect(() => {
+    if (!salon?.id) return;
+
+    // 1. Fetch Initial Recent Appointments
+    const fetchRecent = async () => {
+      const { data } = await supabase
+        .from('slots')
+        .select('*, services(name)')
+        .eq('salon_id', salon.id)
+        .order('created_at', { ascending: false })
+        .limit(5);
+      
+      if (data) setRecentAppointments(data);
+    };
+    fetchRecent();
+
+    // 2. Subscribe to Realtime Updates
+    const channel = supabase
+      .channel('realtime-appointments')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'slots',
+          filter: `salon_id=eq.${salon.id}`,
+        },
+        async (payload) => {
+          // Play Sound
+          const audio = new Audio('https://assets.mixkit.co/sfx/preview/mixkit-software-interface-start-2574.mp3');
+          audio.play().catch(e => console.warn("Audio play blocked", e));
+
+          // Fetch full details (with service name)
+          const { data: newSlot } = await supabase
+            .from('slots')
+            .select('*, services(name)')
+            .eq('id', payload.new.id)
+            .single();
+
+          if (newSlot) {
+            setRecentAppointments(prev => [newSlot, ...prev].slice(0, 10));
+            toast.success(`Novo Agendamento: ${newSlot.client_name}`);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [salon?.id]);
 
   // Configurações do Gráfico
@@ -188,6 +243,32 @@ export default function BusinessDashboard() {
               <p className="text-sm text-brand-muted m-0">Seu serviço de <strong>R$ 300</strong> representa a maior parte do lucro líquido.</p>
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* Recent Appointments Section */}
+      <div className="bg-brand-card p-6 rounded-2xl border border-brand-muted/20">
+        <h3 className="text-lg font-semibold text-brand-text mb-4">Últimos Agendamentos (Tempo Real)</h3>
+        <div className="space-y-3">
+          {recentAppointments.map(slot => (
+            <div key={slot.id} className="flex justify-between items-center p-3 bg-brand-surface rounded-xl border border-brand-muted/10 animate-in slide-in-from-top-2">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-brand-primary/10 text-brand-primary rounded-lg">
+                  <Calendar size={18} />
+                </div>
+                <div>
+                  <p className="font-bold text-brand-text">{slot.client_name}</p>
+                  <p className="text-xs text-brand-muted">
+                    {slot.services?.name} • {new Date(slot.start_time).toLocaleDateString('pt-BR')} às {new Date(slot.start_time).toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'})}
+                  </p>
+                </div>
+              </div>
+              <span className="text-xs font-bold bg-green-100 text-green-600 px-2 py-1 rounded-lg">
+                Novo
+              </span>
+            </div>
+          ))}
+          {recentAppointments.length === 0 && <p className="text-brand-muted text-sm">Nenhum agendamento recente.</p>}
         </div>
       </div>
     </div>
