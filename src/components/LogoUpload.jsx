@@ -2,12 +2,13 @@ import React, { useState } from 'react';
 import { supabase } from '../lib/supabase';
 import imageCompression from 'browser-image-compression';
 import { Upload, Loader2, Image as ImageIcon } from 'lucide-react';
-export default function LogoUpload({ salonId, currentLogo, onUploadSuccess, plan }) {
+import { usePlanFeatures } from '../hooks/usePlanFeatures';
+export default function LogoUpload({ salonId, currentLogo, onUploadSuccess }) {
   const [uploading, setUploading] = useState(false);
   const [preview, setPreview] = useState(currentLogo);
+  const { canUseCustomBranding } = usePlanFeatures();
 
-  const isPro = plan === 'pro';
-  const isDisabled = uploading || !isPro;
+  const isDisabled = uploading || !canUseCustomBranding;
   async function handleUpload(event) {
     try {
       setUploading(true);
@@ -103,8 +104,8 @@ export default function LogoUpload({ salonId, currentLogo, onUploadSuccess, plan
             className="hidden"
           />
         </label>
-        {!isPro 
-          ? <p className="text-xs text-amber-500 font-bold">Disponível no Plano Pro</p>
+        {!canUseCustomBranding 
+          ? <p className="text-xs text-amber-500 font-bold">Disponível nos planos PRO</p>
           : <p className="text-xs text-brand-muted">Formatos: JPG, PNG, WebP. Máx: 200KB.</p>
         }
       </div>

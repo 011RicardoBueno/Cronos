@@ -11,6 +11,7 @@ import {
 import DashboardCard from './cards/DashboardCard';
 import { COLORS } from '../../constants/dashboard';
 import NextClientWidget from './NextClientWidget';
+import OnboardingChecklist from './OnboardingChecklist';
 
 const DashboardModules = () => {
   const navigate = useNavigate();
@@ -71,6 +72,7 @@ const DashboardModules = () => {
 
   return (
     <div>
+      <OnboardingChecklist />
       <NextClientWidget />
       <div style={styles.grid}>
         {modules.map((mod, index) => (

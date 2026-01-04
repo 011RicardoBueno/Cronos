@@ -34,9 +34,6 @@ export function useAnalytics() {
         daysParam = 30;
       }
 
-      // Debug: log the parameter
-      console.log('Calling get_salon_analytics with days:', daysParam, 'Type:', typeof daysParam);
-
       // Check authentication
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
@@ -97,7 +94,6 @@ export function useAnalytics() {
             }
       };
 
-      console.log('Analytics data received:', safeData);
       setInsights(safeData);
 
     } catch (error) {

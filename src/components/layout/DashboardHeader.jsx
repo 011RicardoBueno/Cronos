@@ -1,16 +1,17 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Menu, User, LogOut, Moon, Sun } from 'lucide-react';
+import { Menu, User, LogOut } from 'lucide-react';
 import Notifications from '../dashboard/Notifications';
 import { useAuth } from '../../context/AuthContext';
+import { usePlanFeatures } from '../../hooks/usePlanFeatures';
 import { supabase } from '../../lib/supabase';
 import { useNavigate } from 'react-router-dom';
 
 export default function DashboardHeader({ onOpenSidebar }) {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { isTrialActive, trialDaysRemaining } = usePlanFeatures();
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const profileRef = useRef(null);
-  const [isDark, setIsDark] = useState(false);
 
   useEffect(() => {
     function handleClickOutside(event) {
@@ -27,15 +28,22 @@ export default function DashboardHeader({ onOpenSidebar }) {
     navigate('/login');
   };
 
-  const toggleTheme = () => {
-    setIsDark(!isDark);
-    document.documentElement.classList.toggle('dark');
-  };
-
   const userInitial = user?.email ? user.email.charAt(0).toUpperCase() : '?';
 
   return (
     <header className="bg-brand-surface border-b border-brand-muted/10 sticky top-0 z-30 px-4 py-3 flex items-center justify-between">
+      {/* Trial Banner */}
+      {isTrialActive && (
+        <div className="hidden md:flex items-center gap-2">
+          <span className="bg-yellow-400 text-yellow-900 text-xs font-bold px-2 py-1 rounded-full">
+            AVALIAÇÃO
+          </span>
+          <span className="text-sm text-brand-muted">
+            Você tem <span className="font-bold text-brand-text">{trialDaysRemaining}</span> dias restantes no seu teste gratuito.
+          </span>
+        </div>
+      )}
+
       {/* Lado Esquerdo: Menu Mobile & Logo */}
       <div className="flex items-center gap-4 lg:hidden">
         <button 
@@ -67,13 +75,6 @@ export default function DashboardHeader({ onOpenSidebar }) {
                 <p className="text-xs text-brand-muted capitalize">{user?.user_metadata?.role || 'Usuário'}</p>
               </div>
               <div className="p-2">
-                <button
-                  onClick={toggleTheme}
-                  className="w-full flex items-center gap-3 px-3 py-2 text-sm text-brand-text rounded-lg hover:bg-brand-surface transition-colors"
-                >
-                  {isDark ? <Sun size={16} /> : <Moon size={16} />} 
-                  {isDark ? 'Modo Claro' : 'Modo Escuro'}
-                </button>
                 <button
                   onClick={() => {
                     navigate('/minha-conta');

@@ -15,6 +15,8 @@ import Products from '../pages/products/Products'; // Antigo Produtos
 import Professionals from '../pages/professionals/Professionals'; // Antigo Profissionais
 import Settings from '../pages/admin/Settings'; // Antigo Configuracoes
 import DashboardLayout from '../components/layout/DashboardLayout';
+import ApiDocumentation from '../pages/admin/ApiDocumentation';
+import PricingPage from '../pages/admin/PricingPage';
 import MyAccount from '../pages/admin/MyAccount';
 import Clients from '../pages/customers/Clients';
 import QueueDisplay from '../pages/customers/QueueDisplay';
@@ -83,6 +85,8 @@ export const AppRoutes = () => {
                 <Route path="produtos" element={<Products />} />
                 <Route path="profissionais" element={<Professionals />} />
                 <Route path="configuracoes" element={<Settings />} />
+                <Route path="configuracoes/api" element={<ApiDocumentation />} />
+                <Route path="planos" element={<PricingPage />} />
                 <Route path="minha-conta" element={<MyAccount />} />
                 
                 {/* CLIENTES */}

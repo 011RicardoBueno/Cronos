@@ -4,21 +4,22 @@ import { supabase } from "../../lib/supabase";
 import ProfessionalAgendaCard from "../../components/ProfessionalAgendaCard";
 import CheckoutModal from "../../components/CheckoutModal";
 import Button from "../../components/ui/Button";
-import { Calendar, ChevronLeft, ChevronRight, Loader2, CheckCircle2, DollarSign, X, User, Scissors, Info, Lock, Trash2, ClipboardList, View } from "lucide-react";
+import { Calendar, ChevronLeft, ChevronRight, Loader2, CheckCircle2, DollarSign, X, User, Scissors, Info, Lock, Trash2, ClipboardList, View, CalendarDays, Plus, FileText } from "lucide-react";
 import moment from "moment";
 import { toast } from "react-hot-toast";
 import DailySummary from "../../components/DailySummary";
 import WaitingListModal from "../../components/WaitingListModal";
 import AgendaSkeleton from "../../components/AgendaSkeleton";
+import NewAppointmentModal from "../../components/NewAppointmentModal";
 
 export default function Agenda() {
-  const { salon, professionals } = useSalon();
+  const { salon, professionals, services } = useSalon();
   const [currentDate, setCurrentDate] = useState(moment());
   const [slots, setSlots] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedProfessionalId, setSelectedProfessionalId] = useState('all');
   const [now, setNow] = useState(moment());
-  const [viewMode, setViewMode] = useState('day'); // 'day' or 'week'
+  const [viewMode, setViewMode] = useState('day'); // 'day', 'week', or 'month'
   const [filterStatus, setFilterStatus] = useState('all');
   
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
@@ -37,14 +38,36 @@ export default function Agenda() {
 
   const [isWaitingListOpen, setIsWaitingListOpen] = useState(false);
   const [waitingListCount, setWaitingListCount] = useState(0);
+  const [isNewAppointmentModalOpen, setIsNewAppointmentModalOpen] = useState(false);
 
   const timeInterval = 30; // minutes
+
+  const fetchSlotsForDate = useCallback(async () => {
+    setLoading(true);
+    const startDate = (viewMode === 'month' ? currentDate.clone().startOf('month').startOf('week') : (viewMode === 'week' ? currentDate.clone().startOf('week') : currentDate.clone().startOf('day'))).toISOString();
+    const endDate = (viewMode === 'month' ? currentDate.clone().endOf('month').endOf('week') : (viewMode === 'week' ? currentDate.clone().endOf('week') : currentDate.clone().endOf('day'))).toISOString();
+
+    const { data, error } = await supabase
+      .from('slots')
+      .select('*, services(*), professionals(name)')
+      .eq('salon_id', salon.id)
+      .gte('start_time', startDate)
+      .lte('start_time', endDate);
+
+    if (error) {
+      console.error("Erro ao buscar agendamentos:", error);
+      setSlots([]);
+    } else {
+      setSlots(data || []);
+    }
+    setLoading(false);
+  }, [salon?.id, currentDate, viewMode]);
 
   useEffect(() => {
     if (salon?.id) {
       fetchSlotsForDate();
     }
-  }, [salon?.id, currentDate, viewMode]); // Re-fetch when viewMode changes
+  }, [salon?.id, currentDate, viewMode, fetchSlotsForDate]);
 
   useEffect(() => {
     if (salon?.id) {
@@ -88,27 +111,6 @@ export default function Agenda() {
     return result;
   }, [slots, selectedProfessionalId, filterStatus]);
 
-  const fetchSlotsForDate = useCallback(async () => {
-    setLoading(true);
-    const startDate = (viewMode === 'week' ? currentDate.clone().startOf('week') : currentDate.clone().startOf('day')).toISOString();
-    const endDate = (viewMode === 'week' ? currentDate.clone().endOf('week') : currentDate.clone().endOf('day')).toISOString();
-
-    const { data, error } = await supabase
-      .from('slots')
-      .select('*, services(*), professionals(name)')
-      .eq('salon_id', salon.id)
-      .gte('start_time', startDate)
-      .lte('start_time', endDate);
-
-    if (error) {
-      console.error("Erro ao buscar agendamentos:", error);
-      setSlots([]);
-    } else {
-      setSlots(data || []);
-    }
-    setLoading(false);
-  }, [salon?.id, currentDate, viewMode]);
-
   const handleSlotClick = (slot) => {
     setSelectedSlot(slot);
     setIsDetailsOpen(true);
@@ -144,6 +146,12 @@ export default function Agenda() {
     if (viewMode !== 'week') return [];
     const startOfWeek = currentDate.clone().startOf('week');
     return Array.from({ length: 7 }).map((_, i) => startOfWeek.clone().add(i, 'days'));
+  }, [currentDate, viewMode]);
+
+  const monthDays = useMemo(() => {
+    if (viewMode !== 'month') return [];
+    const startOfMonth = currentDate.clone().startOf('month').startOf('week');
+    return Array.from({ length: 35 }).map((_, i) => startOfMonth.clone().add(i, 'days'));
   }, [currentDate, viewMode]);
 
   const getSlotPosition = (slot) => {
@@ -191,7 +199,7 @@ export default function Agenda() {
   };
 
   const changeDate = (amount) => {
-    const unit = viewMode === 'week' ? 'weeks' : 'days';
+    const unit = viewMode === 'month' ? 'months' : (viewMode === 'week' ? 'weeks' : 'days');
     setCurrentDate(currentDate.clone().add(amount, unit));
   };
 
@@ -254,6 +262,21 @@ export default function Agenda() {
   const handleDrop = async (e) => {
     e.preventDefault();
     if (!draggedSlot || !dropIndicator) {
+      handleDragEnd();
+      return;
+    }
+
+    // Validação 1: Não permitir mover agendamentos finalizados.
+    if (draggedSlot.status === 'completed') {
+      toast.error("Não é possível mover um agendamento já finalizado.");
+      handleDragEnd();
+      return;
+    }
+
+    // Validação 2: Não permitir mover para o passado.
+    // Usamos moment() para pegar a data e hora exatas.
+    if (dropIndicator.time.isBefore(moment())) {
+      toast.error("Não é possível mover um agendamento para o passado.");
       handleDragEnd();
       return;
     }
@@ -359,6 +382,9 @@ export default function Agenda() {
               <option value="confirmed">Confirmados</option>
               <option value="completed">Concluídos</option>
             </select>
+            <button onClick={() => setIsNewAppointmentModalOpen(true)} className="flex items-center gap-2 bg-brand-primary text-white px-4 py-2 rounded-xl font-bold hover:opacity-90 transition-colors shadow-lg shadow-brand-primary/20">
+              <Plus size={18} /> Novo Agendamento
+            </button>
           </div>
           <button onClick={() => setIsBlockModalOpen(true)} className="flex items-center gap-2 bg-brand-card border border-brand-muted/20 px-4 py-2 rounded-xl font-bold text-brand-text hover:bg-brand-surface transition-colors">
             <Lock size={18} /> Bloquear Horário
@@ -378,6 +404,9 @@ export default function Agenda() {
               <button onClick={() => setViewMode('week')} className={`px-3 py-1 text-sm font-bold rounded-md transition-all ${viewMode === 'week' ? 'bg-brand-primary text-white' : 'text-brand-muted hover:text-brand-text'}`}>
                 Semana
               </button>
+              <button onClick={() => setViewMode('month')} className={`px-3 py-1 text-sm font-bold rounded-md transition-all ${viewMode === 'month' ? 'bg-brand-primary text-white' : 'text-brand-muted hover:text-brand-text'}`}>
+                Mês
+              </button>
           </div>
           <div className="flex items-center gap-2 bg-brand-card p-2 rounded-2xl border border-brand-muted/20">
             <button onClick={() => changeDate(-1)} className="p-2 hover:bg-brand-surface rounded-lg text-brand-muted"><ChevronLeft /></button>
@@ -392,7 +421,7 @@ export default function Agenda() {
           </div>
         </header>
 
-        <DailySummary slots={filteredSlots} viewMode={viewMode} />
+        {viewMode !== 'month' && <DailySummary slots={filteredSlots} viewMode={viewMode} />}
 
         <div className="overflow-x-auto bg-brand-card border border-brand-muted/10 rounded-3xl p-4">
           <div className="flex" style={{ minWidth: viewMode === 'day' ? `${(filteredProfessionals.length || 1) * 250}px` : '100%' }}>
@@ -407,7 +436,7 @@ export default function Agenda() {
             </div>
 
             {/* Professional Columns */}
-            {loading 
+            {loading && viewMode !== 'month'
               ? <AgendaSkeleton professionalCount={viewMode === 'day' ? (filteredProfessionals.length || 1) : 7} timeSlotsCount={timeSlots.length} />
               : viewMode === 'day' 
               ? (
@@ -482,7 +511,7 @@ export default function Agenda() {
                   )}
                 </div>
                 ))
-              ) : ( // Week View
+              ) : viewMode === 'week' ? ( // Week View
                 <div className="flex-1 relative">
                   <div 
                     className="absolute inset-0"
@@ -533,7 +562,32 @@ export default function Agenda() {
                     />
                   )}
                 </div>
-              )
+              ) : viewMode === 'month' ? (
+                <div className="flex-1 grid grid-cols-7">
+                  {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map(day => (
+                    <div key={day} className="h-12 flex items-center justify-center text-center font-bold text-brand-text border-l border-brand-muted/10">
+                      {day}
+                    </div>
+                  ))}
+                  {monthDays.map(day => {
+                    const daySlots = slots.filter(s => moment(s.start_time).isSame(day, 'day'));
+                    const isCurrentMonth = day.isSame(currentDate, 'month');
+                    return (
+                      <div 
+                        key={day.format('YYYY-MM-DD')} 
+                        className={`h-24 border-t border-l border-brand-muted/10 p-2 ${isCurrentMonth ? 'bg-brand-card' : 'bg-brand-surface'} hover:bg-brand-primary/10 cursor-pointer`}
+                        onClick={() => {
+                          setCurrentDate(day);
+                          setIsNewAppointmentModalOpen(true);
+                        }}
+                      >
+                        <span className={`font-bold ${day.isSame(moment(), 'day') ? 'text-brand-primary' : 'text-brand-text'}`}>{day.date()}</span>
+                        {daySlots.length > 0 && <div className="text-xs mt-1 bg-blue-100 text-blue-600 font-bold rounded px-1.5 py-0.5 inline-block">{daySlots.length} agend.</div>}
+                      </div>
+                    )
+                  })}
+                </div>
+              ) : null
             }
           </div>
         </div>
@@ -565,6 +619,15 @@ export default function Agenda() {
                 <Info size={16} className="text-brand-primary" />
                 <span className="font-semibold text-brand-text capitalize">{selectedSlot.status}</span>
               </div>
+              {selectedSlot.notes && (
+                <div className="flex items-start gap-3 pt-3 border-t border-brand-muted/5">
+                  <FileText size={16} className="text-brand-primary mt-0.5 flex-shrink-0" />
+                  <div>
+                    <p className="font-semibold text-brand-text text-sm">Observações:</p>
+                    <p className="text-sm text-brand-muted whitespace-pre-wrap">{selectedSlot.notes}</p>
+                  </div>
+                </div>
+              )}
             </div>
 
             {selectedSlot.status === 'completed' ? (
@@ -663,6 +726,20 @@ export default function Agenda() {
           salonId={salon?.id}
           professionals={professionals}
           onUpdate={fetchWaitingListCount}
+        />
+      )}
+
+      {/* MODAL DE NOVO AGENDAMENTO */}
+      {isNewAppointmentModalOpen && (
+        <NewAppointmentModal
+          isOpen={isNewAppointmentModalOpen}
+          onClose={() => setIsNewAppointmentModalOpen(false)}
+          salonId={salon?.id}
+          professionals={professionals}
+          services={services}
+          currentDate={currentDate}
+          salon={salon}
+          onSuccess={() => fetchSlotsForDate()}
         />
       )}
     </div>

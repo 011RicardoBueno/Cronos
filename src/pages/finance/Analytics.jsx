@@ -9,7 +9,9 @@ import MonthlyGoal from '../../components/MonthlyGoal';
 import MonthlyBalanceChart from '../../components/MonthlyBalanceChart';
 import RevenueForecast from '../../components/RevenueForecast';
 import FinanceTabs from '../../components/ui/FinanceTabs';
+import { usePlanFeatures } from '../../hooks/usePlanFeatures';
 import moment from 'moment';
+import { toast } from 'react-hot-toast';
 import { 
   TrendingUp,
   TrendingDown, 
@@ -39,11 +41,20 @@ export default function Analytics() {
   const [startDate, setStartDate] = useState(moment().subtract(30, 'days').format('YYYY-MM-DD'));
   const [endDate, setEndDate] = useState(moment().format('YYYY-MM-DD'));
 
-  const isBeta = true; 
-  const _hasProAccess = isBeta || salon?.plan_type === 'pro';
+  // Controle de acesso centralizado com o novo hook
+  const { hasProAccess } = usePlanFeatures();
 
   useEffect(() => {
-    if (salon?.id) {
+    // O hook useSalon já garante que 'salon' estará disponível ou será carregado.
+    // A verificação é feita quando o valor de 'hasProAccess' é resolvido.
+    if (salon && hasProAccess === false) { // Verifica explicitamente por 'false' para evitar redirects durante o loading inicial
+      toast.error("O Hub de Inteligência é um recurso PRO. Faça upgrade para acessar.");
+      navigate('/planos');
+    }
+  }, [salon, hasProAccess, navigate]);
+
+  useEffect(() => {
+    if (salon?.id && hasProAccess) {
       fetchAnalytics(startDate, endDate);
       
       // Calcular período anterior (mesmo intervalo, mês passado)
@@ -51,7 +62,7 @@ export default function Analytics() {
       const prevEnd = moment(endDate).subtract(1, 'month').format('YYYY-MM-DD');
       fetchPrevAnalytics(prevStart, prevEnd);
     }
-  }, [salon?.id, fetchAnalytics, fetchPrevAnalytics, startDate, endDate]);
+  }, [salon?.id, hasProAccess, fetchAnalytics, fetchPrevAnalytics, startDate, endDate]);
 
   const paymentChartData = {
     labels: insights.revenueByPaymentMethod?.map(item => item.name) || [],
@@ -203,20 +214,24 @@ export default function Analytics() {
         </div>
 
         {/* PREVISÕES E METAS */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-          <MonthlyGoal currentRevenue={insights.stats.totalRevenue} />
-          <RevenueForecast salonId={salon?.id} />
-          <MonthlyComparison 
-            title="Evolução Faturamento"
-            current={insights.stats.totalRevenue}
-            previous={prevInsights?.stats?.totalRevenue}
-          />
-        </div>
+        {hasProAccess && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+            <MonthlyGoal currentRevenue={insights.stats.totalRevenue} />
+            <RevenueForecast salonId={salon?.id} />
+            <MonthlyComparison 
+              title="Evolução Faturamento"
+              current={insights.stats.totalRevenue}
+              previous={prevInsights?.stats?.totalRevenue}
+            />
+          </div>
+        )}
 
         {/* BALANÇO SEMESTRAL */}
-        <div className="mb-8">
-          <MonthlyBalanceChart salonId={salon?.id} />
-        </div>
+        {hasProAccess && (
+          <div className="mb-8">
+            <MonthlyBalanceChart salonId={salon?.id} />
+          </div>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
           <div className="bg-brand-card rounded-3xl p-6 border border-brand-muted/10">
@@ -327,7 +342,6 @@ export default function Analytics() {
         <div className="bg-brand-card rounded-3xl p-6 border border-brand-muted/10">
           <div className="flex justify-between items-center mb-4">
             <h4 className="font-bold text-brand-text">Tendência de Faturamento</h4>
-            {isBeta && <span className="text-xs bg-brand-primary/10 text-brand-primary px-2 py-1 rounded-md font-bold">MODO BETA</span>}
           </div>
           <div style={{ position: 'relative', height: '300px' }}>
             <RevenueChart dataPoints={[0, 0, 0, 0, 0, 0, insights.stats.totalRevenue]} isCurrency={true} />

@@ -76,6 +76,26 @@ Para rodar este projeto localmente, siga os passos abaixo.
 
     Abra [http://localhost:5173](http://localhost:5173) no seu navegador para ver o resultado.
 
+### Popular o Banco de Dados com Dados de Exemplo (Seeding)
+
+Para popular seu banco de dados Supabase com dados de exemplo para desenvolvimento e testes:
+
+1.  **Configure as variáveis de ambiente para o seeding:**
+    Crie um arquivo `.env.seed` na raiz do projeto, baseado no arquivo `.env.example` (se existir), ou manualmente com o seguinte conteúdo:
+
+    ```
+    SUPABASE_URL="SUA_URL_DO_SUPABASE"
+    SUPABASE_SERVICE_ROLE_KEY="SUA_CHAVE_SERVICE_ROLE_DO_SUPABASE"
+    ```
+    **ATENÇÃO:** A `SUPABASE_SERVICE_ROLE_KEY` tem privilégios totais e ignora as Row Level Security (RLS). Mantenha-a em segredo e use-a apenas para operações de backend ou seeding.
+
+2.  **Execute o script de seeding:**
+    ```bash
+    npm run seed:db
+    ```
+    Este comando irá popular as tabelas do seu projeto Supabase com dados gerados automaticamente.
+
+
 ---
 
 ## 🔮 Próximos Passos e Melhorias

@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { X } from 'lucide-react';
+import { useSalon } from '../context/SalonContext';
 
 export default function ProfessionalFormModal({ professional, onClose, onSave }) {
+  const { salon } = useSalon();
   const [name, setName] = useState('');
   const [bio, setBio] = useState('');
   const [avatarUrl, setAvatarUrl] = useState('');
@@ -59,11 +61,18 @@ export default function ProfessionalFormModal({ professional, onClose, onSave })
     e.preventDefault();
     setLoading(true);
 
+    if (!salon?.id) {
+      console.error('Erro: ID do salão não encontrado.');
+      setLoading(false);
+      return;
+    }
+
     const professionalData = {
       name,
       bio,
       avatar_url: avatarUrl,
       commission_rate: commissionRate,
+      salon_id: salon.id
     };
 
     let savedProfessional;

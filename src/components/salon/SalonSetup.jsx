@@ -275,35 +275,31 @@ const SalonSetup = ({ onComplete }) => {
       newErrors.number = 'Número/Complemento é obrigatório.';
     }
 
+    setErrors(newErrors);
 
-          setErrors(newErrors);
-    
-          const hasErrors = Object.values(newErrors).some(error => error !== '');
-          if (hasErrors) {
-            setLoading(false);
-            return;
-          }
-          
-          // Re-add check for user ID and pass it explicitly
-          if (!user?.id) {
-            setSubmitError('Erro: ID do usuário não disponível. Por favor, tente novamente ou entre em contato com o suporte.');
-            setLoading(false);
-            return;
-          }
+    const hasErrors = Object.values(newErrors).some(error => error !== '');
+    if (hasErrors) {
+      setLoading(false);
+      return;
+    }
 
-          console.log('User ID before RPC:', user?.id); // Debugging line
-          console.log('Supabase session before RPC:', await supabase.auth.getSession()); // Debugging line for session
+    // Re-add check for user ID and pass it explicitly
+    if (!user?.id) {
+      setSubmitError('Erro: ID do usuário não disponível. Por favor, tente novamente ou entre em contato com o suporte.');
+      setLoading(false);
+      return;
+    }
 
-          try {
-            const fullAddress = `${formData.logradouro}, nº ${formData.number}`;
-      
-            // Use the secure RPC function to create salon and link owner
-            const { data: newSalonId, error } = await supabase.rpc('create_salon_for_user', {
-              salon_name: formData.name,
-              salon_slug: formData.slug,
-              salon_phone: formData.phone, // Add phone
-              salon_address: fullAddress, // Add address
-            });
+    try {
+      const fullAddress = `${formData.logradouro}, nº ${formData.number}`;
+
+      // Use the secure RPC function to create salon and link owner
+      const { data: newSalonId, error } = await supabase.rpc('create_salon_for_user', {
+        salon_name: formData.name,
+        salon_slug: formData.slug,
+        salon_phone: formData.phone, // Add phone
+        salon_address: fullAddress, // Add address
+      });
       if (error) throw error;
 
       setNewSalon({ id: newSalonId, name: formData.name });
