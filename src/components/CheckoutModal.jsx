@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { X, Trash2, ShoppingBag, DollarSign, User, CheckCircle, MessageSquare } from 'lucide-react';
-import { COLORS } from '../constants/dashboard';
+import { X, Trash2, ShoppingBag, DollarSign, User, CheckCircle, MessageSquare, Loader2 } from 'lucide-react';
 import { useSalon } from '../context/SalonContext';
-import { fetchProducts, processSale } from '../services/supabaseService';
+import { supabase } from '../lib/supabase';
 
 const CheckoutModal = ({ isOpen, onClose, slot, onComplete }) => {
   const { professionals } = useSalon();
@@ -11,6 +10,12 @@ const CheckoutModal = ({ isOpen, onClose, slot, onComplete }) => {
   const [allProducts, setAllProducts] = useState([]);
   const [selectedProducts, setSelectedProducts] = useState([]);
   const [advanceAmount, setAdvanceAmount] = useState(0);
+  const [paymentMethod, setPaymentMethod] = useState('Pix'); // Default payment method
+
+  const fetchProducts = async (salonId) => {
+    const { data } = await supabase.from('products').select('*').eq('salon_id', salonId);
+    return data;
+  };
 
   const loadProducts = React.useCallback(async () => {
     if (!slot?.salon_id) return;
@@ -18,12 +23,15 @@ const CheckoutModal = ({ isOpen, onClose, slot, onComplete }) => {
     setAllProducts(data || []);
   }, [slot?.salon_id]);
 
+
+
   useEffect(() => {
     if (isOpen && slot) {
       loadProducts();
       setShowSuccess(false);
       setSelectedProducts([]);
       setAdvanceAmount(0);
+      setPaymentMethod('Pix'); // Reset on open
     }
   }, [isOpen, slot, loadProducts]);
 
@@ -50,6 +58,64 @@ const CheckoutModal = ({ isOpen, onClose, slot, onComplete }) => {
     if (numericAdvance > totalItems) {
       return alert("O valor do abatimento não pode ser maior que o total da venda.");
     }
+
+    const processSale = async ({ salonId, slotId, items, advanceAmount, paymentMethod }) => {
+      // 1. Update slot status to 'completed'
+      const { data: slotData, error: slotError } = await supabase
+        .from('slots')
+        .update({ status: 'completed' })
+        .eq('id', slotId)
+        .select('professional_id, client_name, client_phone')
+        .single();
+    
+      if (slotError) throw slotError;
+    
+      // 2. Prepare financial transaction records
+      const transactions = items.map(item => ({
+        salon_id: salonId,
+        slot_id: slotId,
+        professional_id: item.professional_id,
+        client_name: slotData.client_name,
+        client_phone: slotData.client_phone,
+        type: item.type,
+        description: item.description,
+        amount: item.price,
+        payment_method: paymentMethod,
+        professional_commission: item.price * (item.commission_rate / 100)
+      }));
+    
+      if (advanceAmount > 0) {
+        transactions.push({
+          salon_id: salonId,
+          slot_id: slotId,
+          professional_id: slotData.professional_id,
+          client_name: slotData.client_name,
+          client_phone: slotData.client_phone,
+          type: 'advance_redemption',
+          description: 'Uso de adiantamento/vale',
+          amount: -advanceAmount,
+          payment_method: 'N/A',
+          professional_commission: 0
+        });
+      }
+    
+      const { error: transError } = await supabase.from('finance_transactions').insert(transactions);
+      if (transError) throw transError;
+    
+      // 3. Update product stock for sold items
+      const productUpdates = items
+        .filter(item => item.type === 'product')
+        .map(product => 
+          supabase.rpc('decrement_stock', { 
+            product_id: product.id, 
+            quantity: 1 
+          })
+        );
+
+      const productResults = await Promise.all(productUpdates);
+      const productError = productResults.find(res => res.error);
+      if (productError) throw productError.error;
+    };
 
     setLoading(true);
     try {
@@ -79,7 +145,7 @@ const CheckoutModal = ({ isOpen, onClose, slot, onComplete }) => {
         slotId: slot.id,
         items,
         advanceAmount: numericAdvance,
-        paymentMethod: 'Presencial'
+        paymentMethod: paymentMethod
       });
 
       if (onComplete) onComplete();
@@ -109,18 +175,18 @@ const CheckoutModal = ({ isOpen, onClose, slot, onComplete }) => {
       : null;
 
     return (
-      <div style={styles.overlay}>
-        <div style={{...styles.modal, textAlign: 'center', padding: '40px 24px'}}>
-          <CheckCircle size={60} color={COLORS.sageGreen} style={{ marginBottom: '15px' }} />
-          <h2 style={{ color: COLORS.deepCharcoal, margin: '0 0 10px 0' }}>Venda Concluída!</h2>
-          <p style={{ color: '#666', marginBottom: '30px' }}>Financeiro atualizado e estoque baixado.</p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+      <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/70 backdrop-blur-sm">
+        <div className="bg-brand-card w-full max-w-md rounded-3xl p-8 text-center animate-in fade-in zoom-in-95">
+          <CheckCircle size={60} className="text-brand-primary mx-auto mb-4" />
+          <h2 className="text-2xl font-bold text-brand-text mb-2">Venda Concluída!</h2>
+          <p className="text-brand-muted mb-8">Financeiro atualizado e estoque baixado.</p>
+          <div className="flex flex-col gap-3">
             {whatsappUrl && (
-              <a href={whatsappUrl} target="_blank" rel="noreferrer" style={styles.whatsappBtn}>
+              <a href={whatsappUrl} target="_blank" rel="noreferrer" className="flex items-center justify-center gap-2 p-4 rounded-xl bg-green-500 text-white font-bold no-underline">
                 <MessageSquare size={18} /> Enviar Comanda via WhatsApp
               </a>
             )}
-            <button onClick={onClose} style={styles.secondaryBtn}>Fechar e Voltar</button>
+            <button onClick={onClose} className="p-4 rounded-xl bg-brand-surface text-brand-muted font-bold">Fechar e Voltar</button>
           </div>
         </div>
       </div>
@@ -128,32 +194,34 @@ const CheckoutModal = ({ isOpen, onClose, slot, onComplete }) => {
   }
 
   return (
-    <div style={styles.overlay}>
-      <div style={styles.modal}>
-        <div style={styles.header}>
+    <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+      <div className="bg-brand-card w-full max-w-lg rounded-3xl shadow-2xl border border-brand-muted/20 animate-in fade-in-90">
+        <div className="p-6 border-b border-brand-muted/10 flex justify-between items-center">
           <div>
-            <h2 style={styles.title}>Finalizar Atendimento</h2>
-            <span style={{fontSize: '12px', color: '#888'}}>Cliente: {slot.client_name}</span>
+            <h2 className="text-xl font-bold text-brand-text">Finalizar Atendimento</h2>
+            <span className="text-sm text-brand-muted">Cliente: {slot.client_name}</span>
           </div>
-          <button onClick={onClose} style={styles.closeBtn}><X /></button>
+          <button onClick={onClose} className="p-2 hover:bg-brand-surface rounded-full transition-colors"><X size={20} /></button>
         </div>
 
-        <div style={styles.content}>
-          <div style={styles.infoCard}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <div style={styles.avatarPlaceholder}>{slot.client_name?.charAt(0).toUpperCase()}</div>
+        <div className="p-6 space-y-6">
+          <div className="bg-brand-surface p-4 rounded-2xl flex justify-between items-center border border-brand-muted/10">
+            <div className="flex items-center gap-4">
+              <div className="w-10 h-10 rounded-lg bg-brand-primary/10 text-brand-primary flex items-center justify-center font-bold">
+                <User size={20} />
+              </div>
               <div>
-                <strong style={{display: 'block', fontSize: '15px'}}>{slot.services.name}</strong>
-                <span style={{ fontSize: '12px', color: '#666' }}>Profissional: {slot.professionals?.name}</span>
+                <strong className="block font-bold text-brand-text">{slot.services.name}</strong>
+                <span className="text-xs text-brand-muted">Profissional: {slot.professionals?.name}</span>
               </div>
             </div>
-            <span style={styles.serviceBadge}>R$ {servicePrice.toFixed(2)}</span>
+            <span className="px-3 py-1.5 rounded-lg bg-brand-primary text-white text-sm font-bold">R$ {servicePrice.toFixed(2)}</span>
           </div>
 
-          <div style={{ marginTop: '20px' }}>
-            <label style={styles.label}><ShoppingBag size={16} /> Adicionar Produtos</label>
+          <div>
+            <label className="flex items-center gap-2 text-sm font-bold text-brand-text mb-2"><ShoppingBag size={16} /> Adicionar Produtos</label>
             <select 
-              style={styles.select} 
+              className="w-full bg-brand-surface border border-brand-muted/20 rounded-xl p-3 text-sm outline-none focus:border-brand-primary transition-all mb-3"
               onChange={(e) => {
                 const prod = allProducts.find(p => p.id === e.target.value);
                 if (prod) addProduct(prod);
@@ -161,92 +229,83 @@ const CheckoutModal = ({ isOpen, onClose, slot, onComplete }) => {
               }} 
               value=""
             >
-              <option value="">Buscar no estoque...</option>
+              <option value="" disabled>Buscar no estoque...</option>
               {allProducts.map(p => (
                 <option key={p.id} value={p.id} disabled={p.stock <= 0}>
-                  {p.name} - R$ {p.price.toFixed(2)}
+                  {p.name} (Estoque: {p.stock}) - R$ {p.price.toFixed(2)}
                 </option>
               ))}
             </select>
 
-            {selectedProducts.map((p, i) => (
-              <div key={i} style={styles.itemRow}>
-                <div style={{flex: 1}}>
-                  <div style={{fontSize: '14px', fontWeight: 'bold'}}>{p.name}</div>
-                  <select 
-                    style={styles.miniSelect}
-                    value={p.seller_id}
-                    onChange={(e) => {
-                      const newItems = [...selectedProducts];
-                      newItems[i].seller_id = e.target.value;
-                      setSelectedProducts(newItems);
-                    }}
-                  >
-                    {professionals.map(pro => <option key={pro.id} value={pro.id}>Vendedor: {pro.name}</option>)}
-                  </select>
+            <div className="space-y-2">
+              {selectedProducts.map((p, i) => (
+                <div key={i} className="flex items-center gap-3 p-3 bg-brand-surface rounded-xl border border-brand-muted/10">
+                  <div className="flex-1">
+                    <div className="text-sm font-bold text-brand-text">{p.name}</div>
+                    <select 
+                      className="text-xs bg-transparent border-none p-0 text-blue-500 font-semibold cursor-pointer focus:ring-0"
+                      value={p.seller_id}
+                      onChange={(e) => {
+                        const newItems = [...selectedProducts];
+                        newItems[i].seller_id = e.target.value;
+                        setSelectedProducts(newItems);
+                      }}
+                    >
+                      {professionals.map(pro => <option key={pro.id} value={pro.id}>Vendedor: {pro.name}</option>)}
+                    </select>
+                  </div>
+                  <strong className="text-sm">R$ {p.price.toFixed(2)}</strong>
+                  <button onClick={() => setSelectedProducts(selectedProducts.filter((_, idx) => idx !== i))} className="p-1 text-red-500 hover:bg-red-100 rounded-full"><Trash2 size={16}/></button>
                 </div>
-                <strong>R$ {p.price.toFixed(2)}</strong>
-                <button onClick={() => setSelectedProducts(selectedProducts.filter((_, idx) => idx !== i))} style={styles.removeBtn}><Trash2 size={16}/></button>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
 
-          <div style={styles.advanceSection}>
-            <label style={{...styles.label, color: '#c05621'}}><DollarSign size={16} /> Abater Vale ou Antecipação</label>
+          <div className="p-4 bg-amber-500/10 rounded-2xl border border-amber-500/20">
+            <label className="flex items-center gap-2 text-sm font-bold text-amber-700 mb-2"><DollarSign size={16} /> Abater Vale ou Antecipação</label>
             <input 
               type="number" 
               min="0"
-              style={styles.input} 
+              className="w-full bg-brand-surface border border-brand-muted/20 rounded-xl p-3 text-lg font-bold outline-none focus:border-brand-primary transition-all"
               value={advanceAmount} 
               onChange={(e) => setAdvanceAmount(e.target.value)} 
               placeholder="R$ 0,00"
             />
           </div>
+        </div>
 
-          <div style={styles.footer}>
-            <div style={styles.totalBox}>
-              <div>
-                <span style={{fontSize: '13px', color: '#666'}}>Total a Receber</span>
-                <h3 style={styles.totalValue}>R$ {finalTotal.toFixed(2)}</h3>
-              </div>
-              <button 
-                onClick={handleFinish} 
-                disabled={loading} 
-                style={{...styles.finishBtn, backgroundColor: loading ? '#ccc' : COLORS.sageGreen}}
-              >
-                {loading ? 'Processando...' : 'Finalizar Venda'}
-              </button>
+        <div className="p-6 border-t border-brand-muted/10">
+          <label className="text-xs font-bold text-brand-muted uppercase mb-2 block">Forma de Pagamento</label>
+          <select 
+            value={paymentMethod}
+            onChange={(e) => setPaymentMethod(e.target.value)}
+            className="w-full bg-brand-surface border border-brand-muted/20 rounded-xl p-3 text-sm font-semibold outline-none focus:border-brand-primary transition-all"
+          >
+            <option value="Pix">Pix</option>
+            <option value="Cartão de Crédito">Cartão de Crédito</option>
+            <option value="Cartão de Débito">Cartão de Débito</option>
+            <option value="Dinheiro">Dinheiro</option>
+          </select>
+        </div>
+
+        <div className="p-6 border-t border-brand-muted/10 bg-brand-card rounded-b-3xl">
+          <div className="flex justify-between items-center">
+            <div>
+              <span className="text-sm text-brand-muted">Total a Receber</span>
+              <h3 className="text-3xl font-black text-brand-text">R$ {finalTotal.toFixed(2)}</h3>
             </div>
+            <button 
+              onClick={handleFinish} 
+              disabled={loading} 
+              className="px-8 py-4 rounded-xl font-bold bg-brand-primary text-white hover:opacity-90 transition-all shadow-lg shadow-brand-primary/20 flex items-center gap-2 disabled:bg-brand-muted"
+            >
+              {loading ? <Loader2 className="animate-spin" /> : 'Finalizar Venda'}
+            </button>
           </div>
         </div>
       </div>
     </div>
   );
-};
-
-const styles = {
-  overlay: { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.7)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000, backdropFilter: 'blur(4px)' },
-  modal: { backgroundColor: 'white', width: '95%', maxWidth: '480px', borderRadius: '24px', overflow: 'hidden', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' },
-  header: { padding: '20px 24px', borderBottom: '1px solid #eee', display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
-  title: { margin: 0, fontSize: '18px', color: COLORS.deepCharcoal, fontWeight: '800' },
-  closeBtn: { background: 'none', border: 'none', cursor: 'pointer', color: '#999' },
-  content: { padding: '24px' },
-  infoCard: { backgroundColor: '#f8fafc', padding: '16px', borderRadius: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid #e2e8f0' },
-  avatarPlaceholder: { width: '36px', height: '36px', borderRadius: '10px', backgroundColor: COLORS.warmSand, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' },
-  serviceBadge: { backgroundColor: COLORS.sageGreen, color: 'white', padding: '6px 12px', borderRadius: '8px', fontSize: '14px', fontWeight: 'bold' },
-  label: { display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', fontWeight: 'bold', marginBottom: '10px', color: '#444' },
-  select: { width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #ddd', marginBottom: '15px', fontSize: '14px', outline: 'none' },
-  miniSelect: { border: 'none', fontSize: '11px', color: '#2563eb', background: 'none', padding: 0, cursor: 'pointer', fontWeight: 'bold' },
-  itemRow: { display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', backgroundColor: '#f1f5f9', borderRadius: '12px', marginBottom: '8px' },
-  removeBtn: { background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer' },
-  advanceSection: { marginTop: '20px', padding: '15px', backgroundColor: '#fff8f0', borderRadius: '16px', border: '1px solid #ffe7cc' },
-  input: { width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #ddd', outline: 'none', fontSize: '16px', fontWeight: 'bold', boxSizing: 'border-box' },
-  footer: { marginTop: '24px', borderTop: '1px solid #eee', paddingTop: '20px' },
-  totalBox: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
-  totalValue: { margin: 0, fontSize: '28px', fontWeight: '900', color: COLORS.deepCharcoal },
-  finishBtn: { padding: '16px 30px', borderRadius: '12px', border: 'none', color: 'white', fontWeight: 'bold', fontSize: '16px', cursor: 'pointer' },
-  whatsappBtn: { backgroundColor: '#25D366', color: 'white', textDecoration: 'none', padding: '16px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', fontWeight: 'bold' },
-  secondaryBtn: { backgroundColor: '#f1f5f9', color: '#475569', padding: '16px', borderRadius: '12px', border: 'none', fontWeight: 'bold', cursor: 'pointer' }
 };
 
 export default CheckoutModal;

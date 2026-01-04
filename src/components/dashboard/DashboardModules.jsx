@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import DashboardCard from './cards/DashboardCard';
 import { COLORS } from '../../constants/dashboard';
+import NextClientWidget from './NextClientWidget';
 
 const DashboardModules = () => {
   const navigate = useNavigate();
@@ -26,7 +27,7 @@ const DashboardModules = () => {
       title: "Financeiro",
       description: "Lucro, despesas e comissões",
       icon: <DollarSign size={24} />,
-      path: "/financeiro",
+      path: "/analytics",
       color: COLORS.deepCharcoal,
       badge: "PRO"
     },
@@ -69,18 +70,21 @@ const DashboardModules = () => {
   ];
 
   return (
-    <div style={styles.grid}>
-      {modules.map((mod, index) => (
-        <DashboardCard 
-          key={index}
-          title={mod.title}
-          description={mod.description}
-          icon={mod.icon}
-          onClick={() => navigate(mod.path)}
-          accentColor={mod.color}
-          badge={mod.badge}
-        />
-      ))}
+    <div>
+      <NextClientWidget />
+      <div style={styles.grid}>
+        {modules.map((mod, index) => (
+          <DashboardCard 
+            key={index}
+            title={mod.title}
+            description={mod.description}
+            icon={mod.icon}
+            onClick={() => navigate(mod.path)}
+            accentColor={mod.color}
+            badge={mod.badge}
+          />
+        ))}
+      </div>
     </div>
   );
 };

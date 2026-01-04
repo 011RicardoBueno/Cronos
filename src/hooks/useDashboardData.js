@@ -1,46 +1,37 @@
 // hooks/useDashboardData.js
 import { useState, useCallback, useEffect } from 'react';
-import { fetchSalonData, fetchServicesAndProfessionals } from '../services/supabaseService';
+import { useSalon } from '../context/SalonContext';
+import { fetchServicesAndProfessionals } from '../services/supabaseService';
 import { validateProfessionalExists } from '../utils/dashboardUtils';
 
-export const useDashboardData = (session, selectedProfessionalId) => {
-  const [salon, setSalon] = useState(null);
+export const useDashboardData = (selectedProfessionalId) => {
+  const { salon } = useSalon();
   const [services, setServices] = useState([]);
   const [professionals, setProfessionals] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   const loadData = useCallback(async () => {
-    if (!session) return;
+    if (!salon?.id) return;
     
     setLoading(true);
     setError(null);
 
     try {
-      // Buscar dados do salão
-      const userData = await fetchSalonData(session.user.id);
-      
-      if (!userData?.salons) {
-        throw new Error("Salão não encontrado");
-      }
-      
-      setSalon(userData.salons);
-
       // Buscar serviços e profissionais
-      const { servicesRes, professionalsRes } = await fetchServicesAndProfessionals(userData.salons.id);
+      const { servicesRes, professionalsRes } = await fetchServicesAndProfessionals(salon.id);
       
       if (servicesRes.error) throw servicesRes.error;
       if (professionalsRes.error) throw professionalsRes.error;
 
       const professionalsData = professionalsRes.data || [];
       const servicesData = servicesRes.data || [];
-      
+
       setServices(servicesData);
       setProfessionals(professionalsData);
 
       // Validar selectedProfessionalId
       if (!validateProfessionalExists(professionalsData, selectedProfessionalId)) {
-        // Retornar callback para atualizar o ID
         return { shouldUpdateProfessionalId: true };
       }
       
@@ -51,7 +42,7 @@ export const useDashboardData = (session, selectedProfessionalId) => {
     } finally {
       setLoading(false);
     }
-  }, [session, selectedProfessionalId]);
+  }, [salon?.id, selectedProfessionalId]);
 
   useEffect(() => {
     loadData();

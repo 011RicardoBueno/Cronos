@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../../lib/supabase';
-import { DollarSign, TrendingUp, Users, Package, Calendar, ArrowLeft } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { DollarSign, TrendingUp, Users, Package, Calendar, PieChart } from 'lucide-react';
 import FinanceTabs from '../../components/ui/FinanceTabs';
 import {
   Chart as ChartJS,
@@ -9,18 +8,20 @@ import {
   LinearScale,
   PointElement,
   LineElement,
+  ArcElement,
   Title,
   Tooltip,
   Legend,
   Filler
 } from 'chart.js';
-import { Line } from 'react-chartjs-2';
+import { Line, Pie } from 'react-chartjs-2';
 
 ChartJS.register(
   CategoryScale,
   LinearScale,
   PointElement,
   LineElement,
+  ArcElement,
   Title,
   Tooltip,
   Legend,
@@ -28,7 +29,6 @@ ChartJS.register(
 );
 
 const CashFlow = () => {
-  const navigate = useNavigate();
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [dateRange, setDateRange] = useState({
@@ -36,7 +36,7 @@ const CashFlow = () => {
     end: new Date().toISOString().split('T')[0]
   });
 
-  const [stats, setStats] = useState({ total: 0, commissions: 0, products: 0, net: 0 });
+  const [stats, setStats] = useState({ totalRevenue: 0, totalExpenses: 0, commissions: 0, products: 0, net: 0 });
 
   useEffect(() => {
     fetchTransactions();
@@ -66,10 +66,34 @@ const CashFlow = () => {
   }
 
   const calculateStats = (data) => {
-    const total = data.reduce((acc, curr) => acc + curr.amount, 0);
-    const commissions = data.reduce((acc, curr) => acc + (curr.professional_commission || 0), 0);
-    const products = data.filter(t => t.type === 'product').reduce((acc, curr) => acc + curr.amount, 0);
-    setStats({ total, commissions, products, net: total - commissions });
+    let totalRevenue = 0;
+    let totalExpenses = 0;
+    let commissions = 0;
+    let products = 0;
+
+    data.forEach(t => {
+      const val = Number(t.amount);
+      // Assumindo que 'expense' é despesa e os outros (income, service, product) são receitas
+      // Se o valor vier negativo do banco, usamos Math.abs para somar nos totalizadores corretos
+      if (t.type === 'expense') {
+        totalExpenses += Math.abs(val);
+      } else {
+        totalRevenue += Math.abs(val);
+        if (t.type === 'product') products += Math.abs(val);
+      }
+
+      if (t.professional_commission) {
+        commissions += Number(t.professional_commission);
+      }
+    });
+
+    setStats({ 
+      totalRevenue, 
+      totalExpenses,
+      commissions, 
+      products, 
+      net: totalRevenue - totalExpenses - commissions 
+    });
   };
 
   // Processamento dos dados para o Gráfico (Memoizado para performance)
@@ -79,11 +103,52 @@ const CashFlow = () => {
       if (!acc[date]) {
         acc[date] = { name: date, receita: 0, liquido: 0 };
       }
-      acc[date].receita += curr.amount;
-      acc[date].liquido += (curr.amount - (curr.professional_commission || 0));
+      
+      const val = Number(curr.amount);
+      if (curr.type === 'expense') {
+        acc[date].liquido -= Math.abs(val);
+      } else {
+        acc[date].receita += Math.abs(val);
+        acc[date].liquido += (Math.abs(val) - (curr.professional_commission || 0));
+      }
+      
       return acc;
     }, {});
     return Object.values(grouped);
+  }, [transactions]);
+
+  // Dados para o Gráfico de Pizza (Despesas por Categoria/Descrição)
+  const expensePieData = useMemo(() => {
+    const expenses = transactions.filter(t => t.type === 'expense');
+    const grouped = expenses.reduce((acc, curr) => {
+      // Usando a descrição como "categoria" já que não temos campo categoria explícito
+      const cat = curr.description || 'Outros'; 
+      acc[cat] = (acc[cat] || 0) + Math.abs(Number(curr.amount));
+      return acc;
+    }, {});
+
+    // Ordenar e pegar os top 5
+    const sorted = Object.entries(grouped)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5);
+
+    return {
+      labels: sorted.map(([name]) => name),
+      datasets: [
+        {
+          data: sorted.map(([, value]) => value),
+          backgroundColor: [
+            'rgba(239, 68, 68, 0.8)',   // Red
+            'rgba(249, 115, 22, 0.8)',  // Orange
+            'rgba(234, 179, 8, 0.8)',   // Yellow
+            'rgba(168, 85, 247, 0.8)',  // Purple
+            'rgba(100, 116, 139, 0.8)', // Slate
+          ],
+          borderColor: 'var(--brand-card)',
+          borderWidth: 2,
+        },
+      ],
+    };
   }, [transactions]);
 
   // Configuração dos dados para o Chart.js
@@ -159,14 +224,25 @@ const CashFlow = () => {
     }
   };
 
+  const pieOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        position: 'right',
+        labels: {
+          color: 'var(--brand-muted)',
+          font: { size: 11 }
+        }
+      }
+    }
+  };
+
   return (
     <div className="min-h-screen bg-brand-surface p-4 md:p-8 transition-colors duration-300">
       <div className="max-w-7xl mx-auto">
         <header className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
           <div className="flex items-center gap-4">
-            <button onClick={() => navigate('/')} className="bg-brand-card p-2 rounded-xl border border-brand-muted/20 shadow-sm hover:bg-brand-muted/10">
-              <ArrowLeft size={20} className="text-brand-text" />
-            </button>
             <div>
               <h2 className="text-2xl font-bold text-brand-text">Fluxo de Caixa</h2>
               <p className="text-sm text-brand-muted">Análise de performance e histórico</p>
@@ -184,45 +260,34 @@ const CashFlow = () => {
         <FinanceTabs />
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <StatCard title="Bruto" value={stats.total} icon={<DollarSign className="text-green-500"/>} />
+          <StatCard title="Bruto" value={stats.totalRevenue} icon={<DollarSign className="text-green-500"/>} />
           <StatCard title="Comissões" value={stats.commissions} icon={<Users className="text-blue-500"/>} />
           <StatCard title="Produtos" value={stats.products} icon={<Package className="text-amber-500"/>} />
           <StatCard title="Líquido" value={stats.net} icon={<TrendingUp className="text-brand-primary"/>} isHighlight />
         </div>
 
-        {/* GRÁFICO DE PERFORMANCE */}
-        <div className="bg-brand-card p-6 rounded-2xl border border-brand-muted/20 shadow-sm mb-8 h-[350px]">
-          <h3 className="text-lg font-bold text-brand-text mb-6">Performance Financeira</h3>
-          <div className="w-full h-[280px]">
-            <Line data={chartConfig} options={chartOptions} />
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+          {/* GRÁFICO DE PERFORMANCE (LINHA) */}
+          <div className="lg:col-span-2 bg-brand-card p-6 rounded-2xl border border-brand-muted/20 shadow-sm h-[350px]">
+            <h3 className="text-lg font-bold text-brand-text mb-6">Performance Financeira</h3>
+            <div className="w-full h-[280px]">
+              <Line data={chartConfig} options={chartOptions} />
+            </div>
           </div>
-        </div>
 
-        {/* TABELA DE TRANSAÇÕES */}
-        <div className="bg-brand-card rounded-2xl border border-brand-muted/20 shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead className="bg-brand-surface/50">
-                <tr>
-                  <th className="p-4 text-xs font-bold text-brand-muted uppercase">Data</th>
-                  <th className="p-4 text-xs font-bold text-brand-muted uppercase">Tipo</th>
-                  <th className="p-4 text-xs font-bold text-brand-muted uppercase">Líquido Salão</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-brand-muted/10">
-                {transactions.slice().reverse().map(t => (
-                  <tr key={t.id} className="hover:bg-brand-primary/5 transition-colors">
-                    <td className="p-4 text-sm text-brand-text">{new Date(t.created_at).toLocaleDateString('pt-BR')}</td>
-                    <td className="p-4">
-                      <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase ${t.type === 'service' ? 'bg-green-500/10 text-green-600' : 'bg-amber-500/10 text-amber-600'}`}>
-                        {t.type}
-                      </span>
-                    </td>
-                    <td className="p-4 text-sm font-bold text-brand-primary">R$ {(t.amount - (t.professional_commission || 0)).toFixed(2)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          {/* GRÁFICO DE DESPESAS (PIZZA) */}
+          <div className="bg-brand-card p-6 rounded-2xl border border-brand-muted/20 shadow-sm h-[350px]">
+            <div className="flex items-center gap-2 mb-6">
+              <PieChart size={20} className="text-red-500" />
+              <h3 className="text-lg font-bold text-brand-text">Despesas por Categoria</h3>
+            </div>
+            <div className="w-full h-[250px] flex items-center justify-center">
+              {expensePieData.datasets[0].data.length > 0 ? (
+                <Pie data={expensePieData} options={pieOptions} />
+              ) : (
+                <p className="text-brand-muted text-sm">Nenhuma despesa no período.</p>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -236,7 +301,9 @@ const StatCard = ({ title, value, icon, isHighlight }) => (
       <span className="text-xs font-bold text-brand-muted uppercase tracking-wider">{title}</span>
       {icon}
     </div>
-    <h2 className="text-2xl font-bold text-brand-text">R$ {value.toFixed(2)}</h2>
+    <h2 className="text-2xl font-bold text-brand-text">
+      {value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+    </h2>
   </div>
 );
 

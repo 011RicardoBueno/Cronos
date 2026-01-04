@@ -1,6 +1,13 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
+import {
+  fetchSalonByIdOrSlug,
+  fetchServicesAndProfessionals,
+  fetchProfessionalServices,
+  fetchBusySlotsForDate,
+  createBookingSlot
+} from '../../services/supabaseService';
 import { 
   MapPin, Clock, CheckCircle, Calendar, User, Scissors, 
   ChevronLeft, Share2, Loader2, Sparkles, Star, Phone, Users, CheckCircle2, Instagram 
@@ -17,6 +24,7 @@ export default function PublicBookingPage() {
   const [salon, setSalon] = useState(null);
   const [services, setServices] = useState([]);
   const [professionals, setProfessionals] = useState([]);
+  const [professionalServices, setProfessionalServices] = useState([]);
   const [loading, setLoading] = useState(true);
   
   const [step, setStep] = useState(1);
@@ -42,20 +50,22 @@ export default function PublicBookingPage() {
   useEffect(() => {
     async function loadData() {
       try {
-        const { data: salonData, error: salonError } = await supabase
-          .from('salons').select('*').ilike('slug', slug).maybeSingle();
-        if (salonError || !salonData) throw new Error("Salão não encontrado");
+        const salonData = await fetchSalonByIdOrSlug(slug);
         setSalon(salonData);
         document.title = `${salonData.name} | Agendar`;
         if (salonData.theme_name) {
           document.documentElement.setAttribute('data-theme', salonData.theme_name);
         }
-        const [servRes, proRes] = await Promise.all([
-          supabase.from('services').select('*').eq('salon_id', salonData.id).order('price'),
-          supabase.from('professionals').select('*').eq('salon_id', salonData.id)
-        ]);
-        setServices(servRes.data || []);
-        setProfessionals(proRes.data || []);
+
+        const { services, professionals } = await fetchServicesAndProfessionals(salonData.id);
+
+        setServices(services);
+        setProfessionals(professionals);
+
+        if (professionals.length > 0) {
+          const proServData = await fetchProfessionalServices(professionals.map(p => p.id));
+          setProfessionalServices(proServData);
+        }
       } catch (error) { console.error(error); } finally { setLoading(false); }
     }
     loadData();
@@ -78,56 +88,81 @@ export default function PublicBookingPage() {
   useEffect(() => {
     if (selectedProfessional && selectedDate) {
       const fetchOccupied = async () => {
-        const start = moment(selectedDate).startOf('day').toISOString();
-        const end = moment(selectedDate).endOf('day').toISOString();
-        const { data } = await supabase.from('slots').select('start_time')
-          .eq('professional_id', selectedProfessional.id).eq('status', 'confirmed')
-          .gte('start_time', start).lte('start_time', end);
-        setOccupiedSlots(data?.map(s => moment(s.start_time).format('HH:mm')) || []);
+        const busySlots = await fetchBusySlotsForDate(selectedProfessional.id, selectedDate);
+        setOccupiedSlots(busySlots);
       };
       fetchOccupied();
     }
   }, [selectedDate, selectedProfessional]);
 
   const availableSlots = useMemo(() => {
-    if (!salon || !selectedDate) return [];
+    if (!salon || !selectedDate || !selectedService) return [];
     const open = salon.opening_time || '09:00';
     const close = salon.closing_time || '18:00';
-    const duration = selectedService?.duration || 30;
-    const start = moment(`${selectedDate}T${open}`);
-    const end = moment(`${selectedDate}T${close}`);
+    const duration = selectedService.duration_minutes;
+    const dayStart = moment(`${selectedDate}T${open}`);
+    const dayEnd = moment(`${selectedDate}T${close}`);
     const slots = [];
-    let current = start.clone();
-    while (current.clone().add(duration, 'minutes').isSameOrBefore(end)) {
-      const timeStr = current.format('HH:mm');
-      const isPast = moment(selectedDate).isSame(moment(), 'day') && current.isBefore(moment().add(15, 'minutes'));
-      if (!isPast && !occupiedSlots.includes(timeStr)) slots.push(timeStr);
-      current.add(duration, 'minutes');
+
+    const busyRanges = occupiedSlots.map(slot => ({
+      start: moment(slot.start_time),
+      end: moment(slot.end_time)
+    }));
+
+    let currentSlotStart = dayStart.clone();
+    while (currentSlotStart.clone().add(duration, 'minutes').isSameOrBefore(dayEnd)) {
+      const currentSlotEnd = currentSlotStart.clone().add(duration, 'minutes');
+      const isPast = moment(selectedDate).isSame(moment(), 'day') && currentSlotStart.isBefore(moment().add(15, 'minutes'));
+
+      const isOccupied = busyRanges.some(busyRange =>
+        currentSlotStart.isBefore(busyRange.end) && currentSlotEnd.isAfter(busyRange.start)
+      );
+
+      if (!isPast && !isOccupied) {
+        slots.push(currentSlotStart.format('HH:mm'));
+      }
+      currentSlotStart.add(duration, 'minutes');
     }
     return slots;
   }, [salon, selectedDate, selectedService, occupiedSlots]);
+
+  const filteredProfessionals = useMemo(() => {
+    if (!selectedService) return [];
+    if (professionalServices.length === 0) return professionals;
+    const linkedProIds = professionalServices
+      .filter(ps => ps.service_id === selectedService.id)
+      .map(ps => ps.professional_id);
+    return professionals.filter(p => linkedProIds.includes(p.id));
+  }, [selectedService, professionals, professionalServices]);
 
   const handleBooking = async () => {
     if (!selectedTime || clientName.length < 3) return;
     setSubmitting(true);
     try {
-      const startTime = moment(`${selectedDate}T${selectedTime}`).toISOString();
-      await supabase.from('slots').insert({
-        salon_id: salon.id, professional_id: selectedProfessional.id,
-        service_id: selectedService.id, client_name: clientName,
-        client_phone: clientPhone, start_time: startTime, status: 'confirmed'
+      const startTime = moment(`${selectedDate}T${selectedTime}`);
+      const endTime = startTime.clone().add(selectedService.duration_minutes, 'minutes');
+
+      await createBookingSlot({
+        salonId: salon.id,
+        professionalId: selectedProfessional.id,
+        serviceId: selectedService.id,
+        clientId: user?.id,
+        clientName: clientName,
+        clientPhone: clientPhone,
+        startTime: startTime.toISOString(),
+        endTime: endTime.toISOString()
       });
       setBookingSuccess(true);
-    } catch (error) { alert('Erro ao agendar.'); } finally { setSubmitting(false); }
+    } catch (error) { console.error("Booking error:", error); alert('Erro ao agendar.'); } finally { setSubmitting(false); }
   };
 
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-brand-surface"><Loader2 className="animate-spin text-brand-primary" size={40} /></div>;
 
   if (bookingSuccess) return (
     <div className="min-h-screen bg-brand-surface flex items-center justify-center p-6 text-brand-text">
-      <div className="bg-white/80 backdrop-blur-xl border border-white/40 w-full max-w-md p-10 rounded-[2.5rem] text-center shadow-2xl animate-in fade-in zoom-in duration-500">
-        <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
-            <CheckCircle2 size={40} className="text-green-600" />
+      <div className="bg-[var(--glass-bg)] backdrop-blur-[var(--glass-blur)] border border-[var(--glass-border)] w-full max-w-md p-10 rounded-[2.5rem] text-center shadow-2xl animate-in fade-in zoom-in duration-500">
+        <div className="w-20 h-20 bg-brand-primary/10 rounded-full flex items-center justify-center mx-auto mb-6 ring-4 ring-brand-primary/5">
+            <CheckCircle2 size={40} className="text-brand-primary" />
         </div>
         <h2 className="text-3xl font-black mb-2 tracking-tighter">Reservado!</h2>
         <p className="text-brand-muted mb-8 font-medium">Seu horário foi confirmado com sucesso.</p>
@@ -153,15 +188,15 @@ export default function PublicBookingPage() {
             alt="Banner" 
             className="w-full h-full object-cover"
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-[#F8F9FD] via-[#F8F9FD]/20 to-black/30" />
+          <div className="absolute inset-0 bg-gradient-to-t from-brand-surface via-brand-surface/20 to-black/30" />
         </div>
       </div>
 
       {/* CARD DE INFORMAÇÕES DO SALÃO (FLUTUANTE) */}
       <main className="max-w-4xl mx-auto px-6 -mt-32 relative z-20">
-        <div className="bg-white/70 backdrop-blur-2xl border border-white/60 rounded-[2.5rem] p-6 md:p-8 shadow-2xl shadow-brand-primary/5 flex flex-col md:flex-row items-center md:items-end gap-6 mb-12">
+        <div className="bg-[var(--glass-bg)] backdrop-blur-[var(--glass-blur)] border border-[var(--glass-border)] rounded-[2.5rem] p-6 md:p-8 shadow-2xl shadow-brand-primary/5 flex flex-col md:flex-row items-center md:items-end gap-6 mb-12">
           {/* Logo como Avatar flutuante */}
-          <div className="w-32 h-32 md:w-40 md:h-40 rounded-[2rem] bg-white p-2 shadow-xl -mt-20 md:-mt-24 border border-brand-muted/10">
+          <div className="w-32 h-32 md:w-40 md:h-40 rounded-[2rem] bg-brand-card p-2 shadow-xl -mt-20 md:-mt-24 border border-brand-muted/10">
             <img 
                 src={salon?.logo_url || 'https://ui-avatars.com/api/?name=' + salon?.name} 
                 alt={salon?.name} 
@@ -172,7 +207,7 @@ export default function PublicBookingPage() {
           <div className="flex-1 text-center md:text-left">
             <div className="flex items-center justify-center md:justify-start gap-2 mb-1">
                 <h1 className="text-3xl md:text-4xl font-black text-brand-text tracking-tighter">{salon?.name}</h1>
-                <CheckCircle2 size={20} className="text-blue-500 fill-blue-500/10" />
+                <CheckCircle2 size={20} className="text-brand-primary fill-brand-primary/10" />
             </div>
             <p className="text-brand-muted text-sm md:text-base flex items-center justify-center md:justify-start gap-2 font-medium">
               <MapPin size={18} className="text-brand-primary" /> {salon?.address}
@@ -183,11 +218,11 @@ export default function PublicBookingPage() {
             {salon?.instagram_user ? (
               <button 
                 onClick={() => window.open(`https://instagram.com/${salon.instagram_user.replace('@', '')}`, '_blank')}
-                className="p-3 rounded-2xl bg-white border border-brand-muted/20 text-brand-primary hover:bg-gradient-to-br from-pink-500 to-orange-400 hover:text-white transition-all shadow-sm">
+                className="p-3 rounded-2xl bg-brand-card border border-brand-muted/20 text-brand-primary hover:bg-gradient-to-br from-pink-500 to-orange-400 hover:text-white transition-all shadow-sm">
                 <Instagram size={20} />
               </button>
             ) : (
-              <button className="p-3 rounded-2xl bg-white border border-brand-muted/20 text-brand-primary hover:bg-brand-primary hover:text-white transition-all shadow-sm">
+              <button className="p-3 rounded-2xl bg-brand-card border border-brand-muted/20 text-brand-primary hover:bg-brand-primary hover:text-white transition-all shadow-sm">
                   <Share2 size={20} />
               </button>
             )}
@@ -207,7 +242,7 @@ export default function PublicBookingPage() {
                         className={`w-10 h-10 md:w-12 md:h-12 rounded-full flex items-center justify-center font-black transition-all duration-500 border-2 ${
                             step >= i 
                             ? 'bg-brand-primary border-brand-primary text-white shadow-lg shadow-brand-primary/30 scale-110' 
-                            : 'bg-white border-brand-muted/20 text-brand-muted'
+                            : 'bg-brand-card border-brand-muted/20 text-brand-muted'
                         }`}
                     >
                         {step > i ? <CheckCircle2 size={20} /> : i}
@@ -234,7 +269,7 @@ export default function PublicBookingPage() {
                     </div>
                     <div>
                         <h3 className="font-black text-lg text-brand-text">{service.name}</h3>
-                        <p className="text-brand-muted text-sm font-medium">{service.duration} min • <span className="text-brand-primary">R$ {service.price}</span></p>
+                        <p className="text-brand-muted text-sm font-medium">{service.duration_minutes || 30} min • <span className="text-brand-primary">R$ {service.price}</span></p>
                     </div>
                   </div>
                   <ChevronLeft size={20} className="rotate-180 text-brand-muted opacity-50 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
@@ -249,17 +284,25 @@ export default function PublicBookingPage() {
             <button onClick={() => setStep(1)} className="flex items-center gap-2 text-sm font-bold text-brand-muted hover:text-brand-primary transition-colors"><ChevronLeft size={16}/> Voltar para serviços</button>
             <h2 className="text-2xl font-black text-brand-text tracking-tight">Com quem deseja agendar?</h2>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-              {professionals.map(pro => (
+              {filteredProfessionals.map(pro => (
                 <button key={pro.id} onClick={() => { setSelectedProfessional(pro); setStep(3); }}
-                  className="bg-[var(--glass-bg)] backdrop-blur-[var(--glass-blur)] border border-[var(--glass-border)] border-t-white/20 border-l-white/20 shadow-[inset_0_1px_1px_rgba(255,255,255,0.1),0_8px_32px_0_rgba(0,0,0,0.05)] p-6 rounded-[2.5rem] flex flex-col items-center gap-4 hover:bg-brand-card hover:shadow-xl transition-all group animate-in fade-in duration-500">
-                  <div className="w-20 h-20 rounded-full bg-brand-primary/10 flex items-center justify-center text-2xl font-black text-brand-primary group-hover:scale-110 transition-transform overflow-hidden">
+                  className={`relative overflow-hidden rounded-[2rem] border transition-all group text-left flex flex-col animate-in fade-in duration-500
+                    ${selectedProfessional?.id === pro.id 
+                      ? 'border-brand-primary bg-brand-primary/5 shadow-lg ring-2 ring-brand-primary/20' 
+                      : 'bg-[var(--glass-bg)] backdrop-blur-[var(--glass-blur)] border-[var(--glass-border)] border-t-white/20 border-l-white/20 shadow-[inset_0_1px_1px_rgba(255,255,255,0.1),0_8px_32px_0_rgba(0,0,0,0.05)] hover:bg-brand-card hover:shadow-xl'
+                    }`}>
+                  {selectedProfessional?.id === pro.id && <div className="absolute top-3 right-3 z-10 bg-brand-primary text-white p-1 rounded-full shadow-lg"><CheckCircle2 size={14} /></div>}
+                  <div className="w-full aspect-square bg-brand-muted/10 relative">
                     {pro.avatar_url ? (
-                      <img src={pro.avatar_url} alt={pro.name} className="w-full h-full object-cover shadow-inner" />
+                      <img src={pro.avatar_url} alt={pro.name} className="w-full h-full object-cover" />
                     ) : (
-                      pro.name.charAt(0)
+                      <div className="w-full h-full flex items-center justify-center text-brand-muted"><User size={40} /></div>
                     )}
                   </div>
-                  <span className="font-black text-brand-text group-hover:text-brand-primary">{pro.name}</span>
+                  <div className="p-4 w-full">
+                    <h3 className={`font-black text-base mb-1 ${selectedProfessional?.id === pro.id ? 'text-brand-primary' : 'text-brand-text'}`}>{pro.name}</h3>
+                    <p className="text-xs text-brand-muted line-clamp-2 font-medium leading-relaxed">{pro.bio || 'Profissional especialista.'}</p>
+                  </div>
                 </button>
               ))}
             </div>
@@ -282,7 +325,7 @@ export default function PublicBookingPage() {
                       const isSelected = date.format('YYYY-MM-DD') === selectedDate;
                       return (
                           <button key={i} onClick={() => setSelectedDate(date.format('YYYY-MM-DD'))}
-                          className={`flex-shrink-0 w-16 h-24 rounded-2xl flex flex-col items-center justify-center transition-all ${isSelected ? 'bg-brand-primary text-white shadow-lg' : 'bg-white border border-brand-muted/10 text-brand-muted hover:border-brand-primary'}`}>
+                          className={`flex-shrink-0 w-16 h-24 rounded-2xl flex flex-col items-center justify-center transition-all ${isSelected ? 'bg-brand-primary text-white shadow-lg' : 'bg-brand-card border border-brand-muted/10 text-brand-muted hover:border-brand-primary'}`}>
                           <span className="text-[10px] font-bold uppercase">{date.format('ddd')}</span>
                           <span className="text-2xl font-black">{date.format('DD')}</span>
                           </button>
@@ -299,7 +342,7 @@ export default function PublicBookingPage() {
                   <div className="grid grid-cols-4 md:grid-cols-6 gap-3">
                       {availableSlots.map(time => (
                       <button key={time} onClick={() => setSelectedTime(time)}
-                          className={`py-3 rounded-xl text-sm font-bold transition-all ${selectedTime === time ? 'bg-brand-primary text-white' : 'bg-white border border-brand-muted/10 text-brand-text hover:border-brand-primary'}`}>
+                          className={`py-3 rounded-xl text-sm font-bold transition-all ${selectedTime === time ? 'bg-brand-primary text-white' : 'bg-brand-card border border-brand-muted/10 text-brand-text hover:border-brand-primary'}`}>
                           {time}
                       </button>
                     ))}
@@ -312,8 +355,8 @@ export default function PublicBookingPage() {
                     <h3 className="font-black">Seus dados</h3>
                   </div>
                   <div className="grid md:grid-cols-2 gap-4">
-                    <input value={clientName} onChange={e => setClientName(sanitizeName(e.target.value))} placeholder="Nome Completo" className="w-full bg-white border border-brand-muted/10 p-4 rounded-2xl outline-none focus:border-brand-primary transition-all font-medium" />
-                    <input value={clientPhone} onChange={e => setClientPhone(formatPhone(e.target.value))} placeholder="WhatsApp" className="w-full bg-white border border-brand-muted/10 p-4 rounded-2xl outline-none focus:border-brand-primary transition-all font-medium" />
+                    <input value={clientName} onChange={e => setClientName(sanitizeName(e.target.value))} placeholder="Nome Completo" className="w-full bg-brand-surface border border-brand-muted/10 p-4 rounded-2xl outline-none focus:border-brand-primary transition-all font-medium" />
+                    <input value={clientPhone} onChange={e => setClientPhone(formatPhone(e.target.value))} placeholder="WhatsApp" className="w-full bg-brand-surface border border-brand-muted/10 p-4 rounded-2xl outline-none focus:border-brand-primary transition-all font-medium" />
                   </div>
                 </section>
             </div>
@@ -323,7 +366,7 @@ export default function PublicBookingPage() {
 
       {/* RODAPÉ DE AÇÃO COM RESUMO */}
       {step === 3 && (
-        <div className="fixed bottom-0 left-0 right-0 p-6 bg-white/80 backdrop-blur-xl border-t border-brand-muted/10 z-50">
+        <div className="fixed bottom-0 left-0 right-0 p-6 bg-[var(--glass-bg)] backdrop-blur-[var(--glass-blur)] border-t border-[var(--glass-border)] z-50">
           <div className="max-w-4xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
             <div className="hidden md:block">
                 <p className="text-xs font-bold text-brand-muted uppercase tracking-widest">Resumo da Reserva</p>

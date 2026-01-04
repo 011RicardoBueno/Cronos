@@ -1,9 +1,7 @@
 import React, { useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useSalon } from '../../context/SalonContext';
-import { COLORS } from '../../constants/dashboard';
-import BackButton from '../../components/ui/BackButton';
-import { Trash2, Plus, Clock, DollarSign, X } from 'lucide-react';
+import { Trash2, Plus, Clock, DollarSign, X, Scissors, Save, Loader2 } from 'lucide-react';
 
 export default function Servicos() {
   const { salon, services, refreshSalon, loading: loadingContext } = useSalon();
@@ -28,7 +26,7 @@ export default function Servicos() {
         .insert([{ 
           name: newService.name.trim(),
           duration_minutes: Number(newService.duration_minutes),
-          price: Number(newService.price),
+          price: parseFloat(newService.price.toString().replace(',', '.')),
           salon_id: salon.id 
         }]);
 
@@ -62,83 +60,70 @@ export default function Servicos() {
   };
 
   return (
-    <div style={{ backgroundColor: COLORS.offWhite, minHeight: '100vh', padding: '20px' }}>
-      <div style={{ maxWidth: '800px', margin: '0 auto' }}>
-        <BackButton colors={COLORS} />
-        
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '20px 0' }}>
+    <div className="min-h-screen bg-brand-surface p-4 md:p-8 transition-colors duration-300">
+      <div className="max-w-7xl mx-auto">
+        <header className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
           <div>
-            <h2 style={{ color: COLORS.deepCharcoal, margin: 0 }}>Gestão de Serviços</h2>
-            <p style={{ color: '#666', fontSize: '0.9rem', margin: '5px 0 0 0' }}>
-              {salon?.name}
-            </p>
+            <h2 className="text-2xl font-bold text-brand-text flex items-center gap-2">
+              <Scissors className="text-brand-primary" size={24} /> Gestão de Serviços
+            </h2>
+            <p className="text-sm text-brand-muted">{salon?.name}</p>
           </div>
           <button 
             onClick={() => setIsAdding(!isAdding)}
-            style={{ 
-              backgroundColor: isAdding ? '#f44336' : COLORS.sageGreen, 
-              color: 'white', 
-              border: 'none', 
-              padding: '10px 20px', 
-              borderRadius: '8px', 
-              display: 'flex', 
-              alignItems: 'center', 
-              gap: '8px',
-              cursor: 'pointer',
-              transition: '0.3s',
-              fontWeight: '600'
-            }}
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold transition-all shadow-lg ${
+              isAdding 
+                ? 'bg-red-500/10 text-red-500 hover:bg-red-500/20' 
+                : 'bg-brand-primary text-white hover:opacity-90 shadow-brand-primary/20'
+            }`}
           >
             {isAdding ? <X size={20} /> : <Plus size={20} />}
             {isAdding ? 'Cancelar' : 'Novo Serviço'}
           </button>
-        </div>
+        </header>
 
         {isAdding && (
-          <form onSubmit={handleAddService} style={{ 
-            backgroundColor: 'white', padding: '24px', borderRadius: '16px', marginBottom: '20px',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.05)', display: 'grid', gap: '15px'
-          }}>
-            <div style={{ display: 'grid', gap: '5px' }}>
-              <label style={{ fontSize: '0.9rem', fontWeight: '600', color: COLORS.deepCharcoal }}>Nome do Serviço</label>
+          <form onSubmit={handleAddService} className="bg-brand-card border border-brand-muted/20 rounded-3xl p-6 mb-8 shadow-xl animate-in fade-in slide-in-from-top-4 space-y-4">
+            <div>
+              <label className="text-xs font-bold text-brand-muted uppercase mb-1 block">Nome do Serviço</label>
               <input 
                 placeholder="Ex: Corte Degradê + Barba"
                 value={newService.name}
                 onChange={e => setNewService({...newService, name: e.target.value})}
                 required
                 disabled={saving}
-                style={{ padding: '12px', borderRadius: '8px', border: `1px solid ${COLORS.warmSand}`, outlineColor: COLORS.sageGreen }}
+                className="w-full bg-brand-surface border border-brand-muted/20 rounded-xl p-3 outline-none focus:border-brand-primary transition-all text-brand-text"
               />
             </div>
 
-            <div style={{ display: 'flex', gap: '15px' }}>
-              <div style={{ flex: 1, display: 'grid', gap: '5px' }}>
-                <label style={{ fontSize: '0.9rem', fontWeight: '600', color: COLORS.deepCharcoal }}>Duração (minutos)</label>
-                <div style={{ position: 'relative' }}>
-                  <Clock size={16} style={{ position: 'absolute', left: '12px', top: '15px', color: '#999' }} />
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-xs font-bold text-brand-muted uppercase mb-1 block">Duração (min)</label>
+                <div className="relative">
+                  <Clock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-brand-muted" />
                   <input 
                     type="number"
                     min="1"
                     value={newService.duration_minutes}
                     onChange={e => setNewService({...newService, duration_minutes: e.target.value})}
                     disabled={saving}
-                    style={{ width: '100%', padding: '12px 12px 12px 35px', borderRadius: '8px', border: `1px solid ${COLORS.warmSand}`, boxSizing: 'border-box' }}
+                    className="w-full bg-brand-surface border border-brand-muted/20 rounded-xl p-3 pl-10 outline-none focus:border-brand-primary transition-all text-brand-text"
                   />
                 </div>
               </div>
 
-              <div style={{ flex: 1, display: 'grid', gap: '5px' }}>
-                <label style={{ fontSize: '0.9rem', fontWeight: '600', color: COLORS.deepCharcoal }}>Preço (R$)</label>
-                <div style={{ position: 'relative' }}>
-                  <span style={{ position: 'absolute', left: '12px', top: '12px', color: '#999', fontWeight: '600' }}>R$</span>
+              <div>
+                <label className="text-xs font-bold text-brand-muted uppercase mb-1 block">Preço (R$)</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-brand-muted font-bold text-sm">R$</span>
                   <input 
-                    type="number"
-                    step="0.01"
-                    min="0"
+                    type="text"
+                    inputMode="decimal"
+                    placeholder="0,00"
                     value={newService.price}
                     onChange={e => setNewService({...newService, price: e.target.value})}
                     disabled={saving}
-                    style={{ width: '100%', padding: '12px 12px 12px 35px', borderRadius: '8px', border: `1px solid ${COLORS.warmSand}`, boxSizing: 'border-box' }}
+                    className="w-full bg-brand-surface border border-brand-muted/20 rounded-xl p-3 pl-10 outline-none focus:border-brand-primary transition-all text-brand-text"
                   />
                 </div>
               </div>
@@ -147,69 +132,41 @@ export default function Servicos() {
             <button 
               type="submit" 
               disabled={saving}
-              style={{ 
-                backgroundColor: COLORS.deepCharcoal, 
-                color: 'white', 
-                border: 'none', 
-                padding: '14px', 
-                borderRadius: '8px', 
-                cursor: saving ? 'not-allowed' : 'pointer',
-                fontWeight: 'bold',
-                marginTop: '10px',
-                opacity: saving ? 0.7 : 1
-              }}
+              className="w-full bg-brand-primary text-white py-3 rounded-xl font-bold hover:opacity-90 transition-all shadow-lg shadow-brand-primary/20 flex items-center justify-center gap-2"
             >
-              {saving ? 'Guardando...' : 'Confirmar Cadastro'}
+              {saving ? <Loader2 className="animate-spin" size={20} /> : <><Save size={20} /> Salvar Serviço</>}
             </button>
           </form>
         )}
 
         {(loadingContext && services.length === 0) ? (
-          <p style={{ textAlign: 'center', padding: '40px', color: '#666' }}>Carregando serviços...</p>
+          <div className="text-center p-10 text-brand-muted animate-pulse">Carregando serviços...</div>
         ) : (
-          <div style={{ display: 'grid', gap: '12px' }}>
+          <div className="grid gap-4">
             {services.map(service => (
-              <div key={service.id} style={{ 
-                backgroundColor: 'white', padding: '18px 24px', borderRadius: '12px',
-                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                boxShadow: '0 2px 4px rgba(0,0,0,0.02)',
-                border: `1px solid #f0f0f0`
-              }}>
+              <div key={service.id} className="bg-brand-card p-5 rounded-2xl border border-brand-muted/20 flex justify-between items-center hover:shadow-md transition-all group">
                 <div>
-                  <h4 style={{ margin: '0 0 8px 0', color: COLORS.deepCharcoal, fontSize: '1.1rem' }}>{service.name}</h4>
-                  <div style={{ display: 'flex', gap: '20px', fontSize: '0.9rem', color: '#666' }}>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <Clock size={16} color={COLORS.sageGreen} /> {service.duration_minutes} min
+                  <h4 className="text-lg font-bold text-brand-text mb-1">{service.name}</h4>
+                  <div className="flex gap-4 text-sm text-brand-muted">
+                    <span className="flex items-center gap-1">
+                      <Clock size={14} className="text-brand-primary" /> {service.duration_minutes} min
                     </span>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: '600', color: COLORS.deepCharcoal }}>
-                      <DollarSign size={16} color={COLORS.sageGreen} /> R$ {Number(service.price).toFixed(2)}
+                    <span className="flex items-center gap-1 font-semibold text-brand-text">
+                      <DollarSign size={14} className="text-brand-primary" /> R$ {Number(service.price).toFixed(2)}
                     </span>
                   </div>
                 </div>
                 <button 
                   onClick={() => handleDelete(service.id)}
-                  style={{ 
-                    background: '#fff5f5', 
-                    border: 'none', 
-                    color: '#ff4d4d', 
-                    cursor: 'pointer', 
-                    padding: '10px',
-                    borderRadius: '50%',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    transition: '0.2s'
-                  }}
-                  onMouseOver={(e) => e.currentTarget.style.background = '#ffebeb'}
-                  onMouseOut={(e) => e.currentTarget.style.background = '#fff5f5'}
+                  className="p-2 rounded-xl text-brand-muted hover:text-red-500 hover:bg-brand-surface transition-colors"
                 >
                   <Trash2 size={18} />
                 </button>
               </div>
             ))}
             {services.length === 0 && !isAdding && (
-              <div style={{ textAlign: 'center', padding: '60px', backgroundColor: 'white', borderRadius: '16px', border: `2px dashed ${COLORS.warmSand}` }}>
-                <p style={{ color: '#999', margin: 0 }}>Você ainda não cadastrou nenhum serviço.</p>
+              <div className="text-center p-12 bg-brand-card rounded-3xl border border-brand-muted/10">
+                <p className="text-brand-muted">Você ainda não cadastrou nenhum serviço.</p>
               </div>
             )}
           </div>

@@ -1,11 +1,18 @@
 import React, { useState, useEffect } from 'react';
+import { supabase } from '../../lib/supabase';
 import { useSalon } from '../../context/SalonContext';
 import { useAuth } from '../../context/AuthContext'; // Importamos o Auth
-import { COLORS } from '../../constants/dashboard';
+import LogoUpload from '../LogoUpload';
+import BannerUpload from './BannerUpload'; // Corrigido: removido as chaves
+import { Loader2, Sparkles } from 'lucide-react';
 
 const SalonSetup = ({ onComplete }) => {
-  const { createOrUpdateSalon, loading, error: contextError } = useSalon();
+  const { refreshSalon } = useSalon();
   const { user } = useAuth(); // Pegamos os dados do usuário logado
+
+  const [step, setStep] = useState(1);
+  const [loading, setLoading] = useState(false);
+  const [newSalon, setNewSalon] = useState(null); // To store {id, name}
   
   const [formData, setFormData] = useState({
     name: '',
@@ -96,6 +103,7 @@ const SalonSetup = ({ onComplete }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setLoading(true);
     setSubmitError('');
 
     if (formData.name.trim().length < 3) {
@@ -110,88 +118,100 @@ const SalonSetup = ({ onComplete }) => {
 
     try {
       const fullAddress = `${formData.logradouro}, nº ${formData.number}`;
-      
-      await createOrUpdateSalon({
-        name: formData.name,
-        phone: formData.phone,
-        cep: formData.cep,
-        address: fullAddress,
-        slug: formData.slug
+
+      // Use the secure RPC function to create salon and link owner
+      const { data: newSalonId, error } = await supabase.rpc('create_salon_for_user', {
+        salon_name: formData.name,
+        salon_slug: formData.slug,
+        // You can add more fields to the RPC function if needed,
+        // or update them in a subsequent step.
       });
-      
-      if (onComplete) onComplete();
+
+      if (error) throw error;
+
+      // Update the rest of the salon info
+      await supabase.from('salons').update({ phone: formData.phone, address: fullAddress }).eq('id', newSalonId);
+
+      setNewSalon({ id: newSalonId, name: formData.name });
+      await refreshSalon(); // Refresh context to remove 'needsSetup' flag
+      setStep(2); // Move to logo upload step
+
     } catch (err) {
       console.error(err);
       setSubmitError(err.message || 'Erro ao salvar as configurações.');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const styles = {
-    label: { display: 'block', marginBottom: '8px', color: COLORS.deepCharcoal, fontWeight: '700', fontSize: '14px' },
-    input: { width: '100%', padding: '14px 16px', border: `1px solid #E5E7EB`, borderRadius: '12px', fontSize: '16px', backgroundColor: '#FFFFFF', color: COLORS.deepCharcoal, boxSizing: 'border-box', outline: 'none', transition: 'all 0.2s' }
-  };
-
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: COLORS.offWhite, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '20px' }}>
-      <div style={{ backgroundColor: 'white', borderRadius: '24px', padding: '40px', boxShadow: '0 20px 50px rgba(0,0,0,0.08)', maxWidth: '500px', width: '100%' }}>
+    <div className="min-h-screen bg-brand-surface flex justify-center items-center p-4">
+      <div className="bg-brand-card rounded-3xl p-8 md:p-10 shadow-2xl w-full max-w-lg">
         
-        <div style={{ textAlign: 'center', marginBottom: '32px' }}>
-          <h2 style={{ color: COLORS.deepCharcoal, fontSize: '28px', fontWeight: '800', marginBottom: '8px' }}>👋 Quase lá!</h2>
-          <p style={{ color: '#6B7280', fontSize: '16px', lineHeight: '1.5' }}>Confirme os dados do seu salão para ativar sua agenda.</p>
-        </div>
-
-        <form onSubmit={handleSubmit}>
-          <div style={{ marginBottom: '20px' }}>
-            <label style={styles.label}>Nome do Salão *</label>
-            <input name="name" value={formData.name} onChange={handleChange} placeholder="Como seus clientes te conhecem?" style={styles.input} required />
-          </div>
-
-          <div style={{ display: 'flex', gap: '15px', marginBottom: '20px' }}>
-            <div style={{ flex: 1 }}>
-              <label style={styles.label}>WhatsApp / Telefone *</label>
-              <input name="phone" value={formData.phone} onChange={handleChange} placeholder="(00) 00000-0000" style={styles.input} required maxLength={15} />
+        {step === 1 && (
+          <>
+            <div className="text-center mb-8">
+              <h2 className="text-3xl font-extrabold text-brand-text mb-2">👋 Quase lá!</h2>
+              <p className="text-brand-muted">Confirme os dados do seu salão para ativar sua agenda.</p>
             </div>
-          </div>
 
-          <div style={{ display: 'flex', gap: '15px', marginBottom: '20px' }}>
-            <div style={{ flex: 1 }}>
-              <label style={styles.label}>CEP *</label>
-              <input name="cep" value={formData.cep} onChange={handleCEPChange} placeholder="00000-000" style={styles.input} required />
+            <form onSubmit={handleSubmit} className="space-y-5">
+              <div>
+                <label className="block text-sm font-bold text-brand-text mb-2">Nome do Salão *</label>
+                <input name="name" value={formData.name} onChange={handleChange} placeholder="Como seus clientes te conhecem?" className="w-full p-3 bg-brand-surface border border-brand-muted/20 rounded-xl outline-none focus:border-brand-primary" required />
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-brand-text mb-2">WhatsApp / Telefone *</label>
+                <input name="phone" value={formData.phone} onChange={handleChange} placeholder="(00) 00000-0000" className="w-full p-3 bg-brand-surface border border-brand-muted/20 rounded-xl outline-none focus:border-brand-primary" required maxLength={15} />
+              </div>
+
+              <div className="flex flex-col md:flex-row gap-4">
+                <div className="flex-1">
+                  <label className="block text-sm font-bold text-brand-text mb-2">CEP *</label>
+                  <input name="cep" value={formData.cep} onChange={handleCEPChange} placeholder="00000-000" className="w-full p-3 bg-brand-surface border border-brand-muted/20 rounded-xl outline-none focus:border-brand-primary" required />
+                </div>
+                <div className="flex-1">
+                  <label className="block text-sm font-bold text-brand-text mb-2">Número / Compl. *</label>
+                  <input name="number" value={formData.number} onChange={handleChange} placeholder="Ex: 123, Sala 2" className="w-full p-3 bg-brand-surface border border-brand-muted/20 rounded-xl outline-none focus:border-brand-primary" required />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-brand-text mb-2">Endereço Completo</label>
+                <input name="logradouro" value={formData.logradouro} readOnly placeholder={cepLoading ? "Buscando endereço..." : "Preencha o CEP acima"} className="w-full p-3 bg-brand-surface/50 border border-brand-muted/20 rounded-xl outline-none cursor-not-allowed text-brand-muted" />
+              </div>
+
+              <div className="p-4 bg-brand-primary/10 rounded-xl border border-brand-primary/20">
+                <label className="block text-xs font-bold text-brand-primary mb-1">Seu link de agendamento:</label>
+                <div className="flex items-center gap-1">
+                  <span className="text-brand-primary font-bold text-sm">fluxo.com/p/{formData.slug || 'link-do-salao'}</span>
+                </div>
+              </div>
+
+              {(submitError) && <div className="p-3 bg-red-500/10 text-red-600 border border-red-500/20 rounded-xl text-sm text-center">{submitError}</div>}
+
+              <button type="submit" disabled={loading || cepLoading} className="w-full p-4 bg-brand-primary text-white rounded-xl text-base font-bold transition-all hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2">
+                {loading || cepLoading ? <Loader2 className="animate-spin" /> : 'Continuar'}
+              </button>
+            </form>
+          </>
+        )}
+
+        {step === 2 && newSalon && (
+          <div className="text-center space-y-6 animate-in fade-in">
+            <Sparkles className="mx-auto text-brand-primary" size={48} />
+            <h2 className="text-2xl font-extrabold text-brand-text">Personalize sua Marca</h2>
+            <p className="text-brand-muted">Envie as imagens que representarão seu salão. <br/>(Este passo é opcional)</p>
+            <div className="space-y-4">
+              <LogoUpload salonId={newSalon.id} plan="pro" />
+              <BannerUpload salonId={newSalon.id} plan="pro" />
             </div>
-            <div style={{ flex: 1 }}>
-              <label style={styles.label}>Número / Compl. *</label>
-              <input name="number" value={formData.number} onChange={handleChange} placeholder="Ex: 123, Sala 2" style={styles.input} required />
-            </div>
+            <button onClick={onComplete} className="w-full p-4 bg-brand-primary text-white rounded-xl font-bold transition-all hover:opacity-90">
+              Concluir e ir para o Dashboard
+            </button>
           </div>
-
-          <div style={{ marginBottom: '20px' }}>
-            <label style={styles.label}>Endereço Completo</label>
-            <input 
-              name="logradouro" 
-              value={formData.logradouro} 
-              readOnly
-              placeholder={cepLoading ? "Buscando endereço..." : "Preencha o CEP acima"} 
-              style={{ ...styles.input, backgroundColor: '#F9FAFB', cursor: 'not-allowed', color: '#6B7280' }} 
-            />
-          </div>
-
-          <div style={{ marginBottom: '30px', padding: '16px', backgroundColor: '#F0FDF4', borderRadius: '12px', border: `1px solid ${COLORS.sageGreen}` }}>
-            <label style={{ ...styles.label, marginBottom: '4px', fontSize: '12px', color: '#166534' }}>Seu link de agendamento:</label>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <span style={{ color: '#166534', fontWeight: '800', fontSize: '14px' }}>fluxo.com/p/{formData.slug || 'link-do-salao'}</span>
-            </div>
-          </div>
-
-          {(submitError || contextError) && (
-            <div style={{ color: '#dc2626', backgroundColor: '#fef2f2', padding: '12px', borderRadius: '8px', marginBottom: '24px', fontSize: '14px', textAlign: 'center', border: '1px solid #fee2e2' }}>
-              {submitError || contextError}
-            </div>
-          )}
-
-          <button type="submit" disabled={loading || cepLoading} style={{ width: '100%', padding: '18px', backgroundColor: COLORS.sageGreen, color: 'white', border: 'none', borderRadius: '12px', fontSize: '16px', fontWeight: '700', cursor: (loading || cepLoading) ? 'not-allowed' : 'pointer', opacity: (loading || cepLoading) ? 0.7 : 1, transition: 'all 0.2s' }}>
-            {loading ? 'Criando Salão...' : 'Ativar Minha Agenda'}
-          </button>
-        </form>
+        )}
       </div>
     </div>
   );

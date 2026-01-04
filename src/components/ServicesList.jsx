@@ -58,103 +58,60 @@ export default function ServicesList({ services, setServices, salonId }) {
 
   return (
     <section>
-      <form onSubmit={handleCreateService} style={{ display: 'flex', gap: '10px', marginBottom: '20px', flexWrap: 'wrap' }}>
-  <input 
-    placeholder="Nome do Serviço" 
-    value={serviceName} 
-    onChange={e => setServiceName(e.target.value)}
-    required
-    style={{ 
-      padding: '12px', 
-      borderRadius: '8px', 
-      border: '1px solid #ddd', 
-      flex: 1,
-      backgroundColor: '#ffffff', // Força fundo branco
-      color: '#333333',           // Força texto escuro
-      fontSize: '14px'
-    }}
-  />
-  <input 
-    type="number" 
-    placeholder="Minutos" 
-    value={serviceDuration} 
-    onChange={e => setServiceDuration(e.target.value)}
-    required
-    style={{ 
-      padding: '12px', 
-      borderRadius: '8px', 
-      border: '1px solid #ddd', 
-      width: '100px',
-      backgroundColor: '#ffffff', // Força fundo branco
-      color: '#333333',           // Força texto escuro
-      fontSize: '14px'
-    }}
-  />
-  <input 
-    type="number" 
-    step="0.01"
-    placeholder="Preço R$" 
-    value={servicePrice} 
-    onChange={e => setServicePrice(e.target.value)}
-    required
-    style={{ 
-      padding: '12px', 
-      borderRadius: '8px', 
-      border: '1px solid #ddd', 
-      width: '120px',
-      backgroundColor: '#ffffff', // Força fundo branco
-      color: '#333333',           // Força texto escuro
-      fontSize: '14px'
-    }}
-  />
-  <button
-    type="submit"
-    disabled={isSubmitting}
-    style={{
-      padding: "12px 24px",
-      borderRadius: "8px",
-      backgroundColor: isSubmitting ? "#E5E5E5" : "#403D39", // Um tom mais escuro para o botão
-      border: "none",
-      color: "#ffffff", // Texto branco no botão para contraste
-      fontWeight: 'bold',
-      cursor: isSubmitting ? "not-allowed" : "pointer",
-      transition: 'background-color 0.2s'
-    }}
-  >
-    {isSubmitting ? "Salvando..." : "Adicionar"}
-  </button>
-</form>
+      <form onSubmit={handleCreateService} className="flex flex-wrap gap-3 mb-6">
+        <input 
+          placeholder="Nome do Serviço" 
+          value={serviceName} 
+          onChange={e => setServiceName(e.target.value)}
+          required
+          className="flex-1 bg-brand-surface border border-brand-muted/20 rounded-xl p-3 text-sm text-brand-text outline-none focus:border-brand-primary transition-all"
+        />
+        <input 
+          type="number" 
+          placeholder="Minutos" 
+          value={serviceDuration} 
+          onChange={e => setServiceDuration(e.target.value)}
+          required
+          className="w-24 bg-brand-surface border border-brand-muted/20 rounded-xl p-3 text-sm text-brand-text outline-none focus:border-brand-primary transition-all"
+        />
+        <input 
+          type="number" 
+          step="0.01"
+          placeholder="Preço R$" 
+          value={servicePrice} 
+          onChange={e => setServicePrice(e.target.value)}
+          required
+          className="w-32 bg-brand-surface border border-brand-muted/20 rounded-xl p-3 text-sm text-brand-text outline-none focus:border-brand-primary transition-all"
+        />
+        <button
+          type="submit"
+          disabled={isSubmitting}
+          className={`px-6 py-3 rounded-xl font-bold text-white transition-all ${
+            isSubmitting 
+              ? 'bg-brand-muted cursor-not-allowed' 
+              : 'bg-brand-primary hover:opacity-90 shadow-lg shadow-brand-primary/20'
+          }`}
+        >
+          {isSubmitting ? "Salvando..." : "Adicionar"}
+        </button>
+      </form>
 
       {/* Listagem com formatação de preço */}
-      <div style={{ marginTop: '20px' }}>
+      <div className="space-y-2">
         {services.length === 0 ? (
-          <p style={{ color: '#999', textAlign: 'center' }}>Nenhum serviço cadastrado.</p>
+          <p className="text-brand-muted text-center py-4">Nenhum serviço cadastrado.</p>
         ) : (
           services.map(service => (
-            <div key={service.id} style={{ 
-              display: 'flex', 
-              justifyContent: 'space-between', 
-              alignItems: 'center',
-              padding: '12px', 
-              borderBottom: '1px solid #eee',
-              backgroundColor: '#fdfdfd'
-            }}>
+            <div key={service.id} className="flex justify-between items-center p-4 border-b border-brand-muted/10 bg-brand-card hover:bg-brand-surface transition-colors rounded-lg">
               <div>
-                <strong style={{ color: '#333' }}>{service.name}</strong>
-                <div style={{ fontSize: '12px', color: '#666' }}>
+                <strong className="text-brand-text block">{service.name}</strong>
+                <div className="text-xs text-brand-muted mt-1">
                   {service.duration_minutes} min • R$ {Number(service.price).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                 </div>
               </div>
               <button 
                 onClick={() => handleDeleteService(service.id)} // AGORA DEVE FUNCIONAR
-                style={{ 
-                  color: '#e74c3c', 
-                  border: 'none', 
-                  background: 'none', 
-                  cursor: 'pointer',
-                  fontWeight: 'bold',
-                  padding: '5px'
-                }}
+                className="text-red-500 hover:text-red-600 font-bold p-2 hover:bg-red-50 rounded-lg transition-colors"
               >
                 Remover
               </button>

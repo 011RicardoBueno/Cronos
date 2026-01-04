@@ -2,7 +2,8 @@ import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useSalon } from '../context/SalonContext';
-import { Toaster } from 'react-hot-toast';
+import ToastNotifications from '../components/ui/ToastNotifications';
+import { Loader2 } from 'lucide-react';
 
 // --- GESTÃO E ADMINISTRAÇÃO ---
 import BusinessDashboard from '../pages/dashboard/BusinessDashboard'; 
@@ -14,12 +15,15 @@ import Products from '../pages/products/Products'; // Antigo Produtos
 import Professionals from '../pages/professionals/Professionals'; // Antigo Profissionais
 import Settings from '../pages/admin/Settings'; // Antigo Configuracoes
 import DashboardLayout from '../components/layout/DashboardLayout';
+import MyAccount from '../pages/admin/MyAccount';
 import Clients from '../pages/customers/Clients';
 import QueueDisplay from '../pages/customers/QueueDisplay';
 
 // --- FINANCEIRO ---
 import CashFlow from '../pages/finance/CashFlow'; // Antigo FluxoCaixa
 import Analytics from '../pages/finance/Analytics'; 
+import Transactions from '../pages/finance/Transactions';
+import ServicePerformance from '../pages/finance/ServicePerformance';
 
 // --- CLIENTE LOGADO ---
 import Explorer from '../pages/client/Explorer'; 
@@ -36,21 +40,15 @@ export const AppRoutes = () => {
 
   if (authLoading || salonLoading) {
     return (
-      <div style={styles.loader}>
-        <p>Carregando ecossistema...</p>
+      <div className="flex flex-col justify-center items-center h-screen bg-brand-surface text-brand-muted">
+        <Loader2 className="animate-spin text-brand-primary mb-4" size={32} />
+        <p className="font-semibold">Carregando ecossistema...</p>
       </div>
     );
   }
-
   return (
     <>
-      <Toaster 
-        position="top-right" 
-        toastOptions={{
-          style: { background: '#1f2937', color: '#fff', borderRadius: '12px' },
-          success: { duration: 5000 }
-        }}
-      />
+      <ToastNotifications />
       <Routes>
       {/* ROTA DE LOGIN */}
       <Route path="/login" element={!session ? <Login /> : <Navigate to="/" replace />} />
@@ -85,14 +83,18 @@ export const AppRoutes = () => {
                 <Route path="produtos" element={<Products />} />
                 <Route path="profissionais" element={<Professionals />} />
                 <Route path="configuracoes" element={<Settings />} />
+                <Route path="minha-conta" element={<MyAccount />} />
                 
                 {/* CLIENTES */}
                 <Route path="admin/clientes" element={<Clients />} />
                 <Route path="admin/painel-fila" element={<QueueDisplay />} />
 
                 {/* FINANCEIRO */}
-                <Route path="financeiro" element={<CashFlow />} />
+                <Route path="financeiro" element={<Navigate to="/analytics" replace />} />
                 <Route path="analytics" element={<Analytics />} />
+                <Route path="financeiro/servicos" element={<ServicePerformance />} />
+                <Route path="financeiro/fluxo-caixa" element={<CashFlow />} />
+                <Route path="financeiro/transacoes" element={<Transactions />} />
               </Route>
 
               {/* ÁREA DO CLIENTE */}
@@ -110,16 +112,4 @@ export const AppRoutes = () => {
       </Routes>
     </>
   );
-};
-
-const styles = {
-  loader: { 
-    display: 'flex', 
-    justifyContent: 'center', 
-    alignItems: 'center', 
-    height: '100vh', 
-    fontFamily: 'sans-serif',
-    backgroundColor: '#f9f9f9',
-    color: '#666'
-  }
 };

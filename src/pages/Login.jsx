@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { COLORS } from '../constants/dashboard';
 
 const Login = () => {
   const [email, setEmail] = useState(''); // Usado como identificador no Login
@@ -125,69 +124,61 @@ const Login = () => {
   };
 
   return (
-    <div style={styles.container}>
-      <div style={styles.card}>
-        <div style={{ textAlign: 'center', marginBottom: '32px' }}>
-          <h1 style={styles.title}>Fluxo</h1>
-          <p style={styles.subtitle}>Olá, seja bem-vindo!</p>
+    <div className="min-h-screen bg-brand-surface flex items-center justify-center p-4">
+      <div className="bg-brand-card rounded-3xl p-8 md:p-10 w-full max-w-md shadow-2xl">
+        <div className="text-center mb-8">
+          <h1 className="text-4xl font-extrabold text-brand-text mb-2">Fluxo</h1>
+          <p className="text-lg text-brand-muted">Olá, seja bem-vindo!</p>
         </div>
 
-        <div style={styles.tabContainer}>
+        <div className="flex bg-brand-surface rounded-xl p-1 mb-8">
           <button
             type="button"
             onClick={() => { setMode('login'); setError(''); setEmail(''); setPassword(''); }}
-            style={{ ...styles.tabButton, 
-              backgroundColor: mode === 'login' ? COLORS.white : 'transparent',
-              fontWeight: mode === 'login' ? '700' : '400',
-              boxShadow: mode === 'login' ? '0 2px 4px rgba(0,0,0,0.05)' : 'none'
-            }}
+            className={`flex-1 p-3 rounded-lg text-sm font-bold transition-all ${
+              mode === 'login' ? 'bg-brand-card shadow-sm text-brand-text' : 'text-brand-muted'
+            }`}
           >
             Entrar
           </button>
           <button
             type="button"
             onClick={() => { setMode('signup'); setError(''); setEmail(''); setPassword(''); }}
-            style={{ ...styles.tabButton, 
-              backgroundColor: mode === 'signup' ? COLORS.white : 'transparent',
-              fontWeight: mode === 'signup' ? '700' : '400',
-              boxShadow: mode === 'signup' ? '0 2px 4px rgba(0,0,0,0.05)' : 'none'
-            }}
+            className={`flex-1 p-3 rounded-lg text-sm font-bold transition-all ${
+              mode === 'signup' ? 'bg-brand-card shadow-sm text-brand-text' : 'text-brand-muted'
+            }`}
           >
             Cadastrar
           </button>
         </div>
 
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} className="space-y-5">
           {mode === 'signup' && (
-            <div style={{ marginBottom: '24px' }}>
-              <label style={styles.label}>Como deseja usar o Fluxo?</label>
-              <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+            <div className="space-y-4">
+              <label className="block text-sm font-bold text-brand-text">Como deseja usar o Fluxo?</label>
+              <div className="flex gap-2">
                 <button
                   type="button"
                   onClick={() => setRole('client')}
-                  style={{ ...styles.roleOption, 
-                    borderColor: role === 'client' ? COLORS.sageGreen : '#E5E7EB',
-                    backgroundColor: role === 'client' ? '#F0FDF4' : 'transparent',
-                    color: role === 'client' ? '#166534' : COLORS.deepCharcoal
-                  }}
+                  className={`flex-1 p-3 border-2 rounded-xl text-sm font-semibold transition-all ${
+                    role === 'client' ? 'border-brand-primary bg-brand-primary/10 text-brand-primary' : 'border-brand-muted/20 text-brand-muted'
+                  }`}
                 >
                   Sou Cliente
                 </button>
                 <button
                   type="button"
                   onClick={() => setRole('admin')}
-                  style={{ ...styles.roleOption, 
-                    borderColor: role === 'admin' ? COLORS.sageGreen : '#E5E7EB',
-                    backgroundColor: role === 'admin' ? '#F0FDF4' : 'transparent',
-                    color: role === 'admin' ? '#166534' : COLORS.deepCharcoal
-                  }}
+                  className={`flex-1 p-3 border-2 rounded-xl text-sm font-semibold transition-all ${
+                    role === 'admin' ? 'border-brand-primary bg-brand-primary/10 text-brand-primary' : 'border-brand-muted/20 text-brand-muted'
+                  }`}
                 >
                   Sou um Salão
                 </button>
               </div>
               
-              <div style={styles.roleInfoBox}>
-                 <p style={styles.infoText}>
+              <div className="p-3 bg-brand-surface rounded-xl border border-brand-muted/10 min-h-[44px] flex items-center justify-center">
+                 <p className="text-xs text-brand-muted text-center">
                    {role === 'client' 
                      ? "Busque salões próximos e agende seus horários online."
                      : "Tenha acesso a ferramentas de gestão, agenda e profissionais."
@@ -197,65 +188,34 @@ const Login = () => {
             </div>
           )}
 
-          {mode === 'signup' && (
-            <div style={{ marginBottom: '20px' }}>
-              <label style={styles.label}>Nome Completo *</label>
-              <input
-                type="text"
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                placeholder="Ex: João Silva"
-                style={styles.input}
-                required
-              />
-            </div>
-          )}
+          {mode === 'signup' && (<div>
+            <label className="block text-sm font-bold text-brand-text mb-2">Nome Completo *</label>
+            <input type="text" value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Ex: João Silva" className="w-full p-3 bg-brand-surface border border-brand-muted/20 rounded-xl outline-none focus:border-brand-primary" required />
+          </div>)}
 
-          <div style={{ marginBottom: '20px' }}>
-            <label style={styles.label}>
+          <div>
+            <label className="block text-sm font-bold text-brand-text mb-2">
               {mode === 'signup' ? 'WhatsApp / Telefone *' : 'Telefone ou E-mail'}
             </label>
-            <input
-              type="text"
-              value={mode === 'signup' ? phone : email}
-              onChange={(e) => mode === 'signup' ? setPhone(formatPhone(e.target.value)) : handleLoginIdentifierChange(e)}
-              placeholder={mode === 'signup' ? '(00) 00000-0000' : 'Seu telefone ou e-mail'}
-              style={styles.input}
-              required
-            />
+            <input type="text" value={mode === 'signup' ? phone : email} onChange={(e) => mode === 'signup' ? setPhone(formatPhone(e.target.value)) : handleLoginIdentifierChange(e)} placeholder={mode === 'signup' ? '(00) 00000-0000' : 'Seu telefone ou e-mail'} className="w-full p-3 bg-brand-surface border border-brand-muted/20 rounded-xl outline-none focus:border-brand-primary" required />
           </div>
 
-          <div style={{ marginBottom: '20px' }}>
-            <label style={styles.label}>Senha *</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-              style={styles.input}
-              required
-            />
+          <div>
+            <label className="block text-sm font-bold text-brand-text mb-2">Senha *</label>
+            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" className="w-full p-3 bg-brand-surface border border-brand-muted/20 rounded-xl outline-none focus:border-brand-primary" required />
           </div>
 
-          {mode === 'signup' && (
-            <div style={{ marginBottom: '24px' }}>
-              <label style={styles.label}>E-mail <span style={{ fontWeight: '400', color: '#9CA3AF' }}>(Opcional)</span></label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="Para receber seus comprovantes"
-                style={styles.input}
-              />
-            </div>
-          )}
+          {mode === 'signup' && (<div>
+            <label className="block text-sm font-bold text-brand-text mb-2">E-mail <span className="font-normal text-brand-muted">(Opcional)</span></label>
+            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Para receber seus comprovantes" className="w-full p-3 bg-brand-surface border border-brand-muted/20 rounded-xl outline-none focus:border-brand-primary" />
+          </div>)}
 
-          {error && <div style={styles.errorBox}>{error}</div>}
+          {error && <div className="p-3 bg-red-500/10 text-red-600 border border-red-500/20 rounded-xl text-sm text-center">{error}</div>}
 
           <button
             type="submit"
             disabled={loading}
-            style={{ ...styles.submitButton, opacity: loading ? 0.7 : 1 }}
+            className="w-full p-4 bg-brand-primary text-white rounded-xl text-base font-bold transition-all hover:opacity-90 disabled:opacity-50"
           >
             {loading ? 'Processando...' : (mode === 'signup' ? 'Criar minha conta' : 'Entrar na conta')}
           </button>
@@ -263,22 +223,6 @@ const Login = () => {
       </div>
     </div>
   );
-};
-
-const styles = {
-  container: { minHeight: '100vh', backgroundColor: COLORS.offWhite, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' },
-  card: { backgroundColor: COLORS.white, borderRadius: '24px', padding: '40px', width: '100%', maxWidth: '450px', boxShadow: '0 20px 50px rgba(0,0,0,0.08)' },
-  title: { fontSize: '32px', fontWeight: '800', color: COLORS.deepCharcoal, marginBottom: '8px' },
-  subtitle: { fontSize: '18px', color: '#6B7280', marginBottom: '0' },
-  tabContainer: { display: 'flex', backgroundColor: '#F3F4F6', borderRadius: '12px', padding: '4px', marginBottom: '32px' },
-  tabButton: { flex: 1, padding: '12px', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', transition: 'all 0.2s', color: COLORS.deepCharcoal },
-  label: { display: 'block', fontSize: '14px', fontWeight: '700', color: COLORS.deepCharcoal, marginBottom: '8px' },
-  input: { width: '100%', padding: '14px 16px', borderRadius: '12px', border: '1px solid #E5E7EB', fontSize: '16px', outline: 'none', transition: 'border-color 0.2s', boxSizing: 'border-box' },
-  roleOption: { flex: 1, padding: '12px', border: '2px solid', borderRadius: '12px', cursor: 'pointer', fontSize: '14px', textAlign: 'center', transition: 'all 0.2s', fontWeight: '600' },
-  roleInfoBox: { padding: '12px 16px', backgroundColor: '#F9FAFB', borderRadius: '12px', border: '1px solid #F3F4F6', minHeight: '44px', display: 'flex', alignItems: 'center' },
-  infoText: { margin: 0, fontSize: '13px', color: '#4B5563', lineHeight: '1.4', textAlign: 'center', width: '100%' },
-  submitButton: { width: '100%', padding: '16px', backgroundColor: COLORS.sageGreen, color: 'white', border: 'none', borderRadius: '12px', fontSize: '16px', fontWeight: '700', cursor: 'pointer', marginTop: '10px' },
-  errorBox: { padding: '12px', backgroundColor: '#FEF2F2', color: '#DC2626', borderRadius: '8px', fontSize: '14px', marginBottom: '20px', textAlign: 'center', border: '1px solid #FEE2E2' }
 };
 
 export default Login;

@@ -1,47 +1,33 @@
 import React from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
-import { ReceiptText, BarChart3 } from 'lucide-react';
+import { NavLink } from 'react-router-dom';
+import { BarChart3, List, Scissors, LineChart } from 'lucide-react';
 
-const FinanceTabs = () => {
-  const navigate = useNavigate();
-  const location = useLocation();
+const tabs = [
+  { to: '/analytics', label: 'Visão Geral', icon: <BarChart3 size={16} /> },
+  { to: '/financeiro/fluxo-caixa', label: 'Fluxo de Caixa', icon: <LineChart size={16} /> },
+  { to: '/financeiro/transacoes', label: 'Transações', icon: <List size={16} /> },
+  { to: '/financeiro/servicos', label: 'Serviços', icon: <Scissors size={16} /> },
+];
 
-  const tabs = [
-    {
-      id: 'fluxo',
-      label: 'Fluxo de Caixa',
-      path: '/financeiro',
-      icon: <ReceiptText size={18} />
-    },
-    {
-      id: 'analytics',
-      label: 'Inteligência (BI)',
-      path: '/analytics',
-      icon: <BarChart3 size={18} />
-    }
-  ];
-
+export default function FinanceTabs() {
   return (
-    <div className="flex gap-2 mb-6 border-b border-brand-muted/10 px-2">
-      {tabs.map((tab) => {
-        const isActive = location.pathname === tab.path;
-        return (
-          <button
-            key={tab.id}
-            onClick={() => navigate(tab.path)}
-            className={`
-              flex items-center gap-2 px-5 py-3 border-b-2 transition-all duration-200 font-semibold text-sm rounded-t-lg
+    <div className="mb-8 border-b border-brand-muted/10">
+      <nav className="flex gap-2 -mb-px">
+        {tabs.map(tab => (
+          <NavLink
+            key={tab.to}
+            to={tab.to}
+            className={({ isActive }) => `
+              flex items-center gap-2 px-4 py-3 border-b-2 text-sm font-bold transition-colors
               ${isActive 
-                ? 'border-brand-primary text-brand-primary bg-brand-primary/5' 
-                : 'border-transparent text-brand-muted hover:text-brand-text hover:bg-brand-muted/5'}
+                ? 'border-brand-primary text-brand-primary' 
+                : 'border-transparent text-brand-muted hover:border-brand-muted/50 hover:text-brand-text'}
             `}
           >
-            {tab.icon}
-            {tab.label}
-          </button>
-        );
-      })}
+            {tab.icon} {tab.label}
+          </NavLink>
+        ))}
+      </nav>
     </div>
   );
-};
-export default FinanceTabs;
+}

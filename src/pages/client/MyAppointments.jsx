@@ -1,154 +1,116 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
-import { COLORS } from '../../constants/dashboard';
-import { Calendar, Clock, AlertCircle, Loader2 } from 'lucide-react';
+import { fetchAppointmentsByClientId } from '../../services/supabaseService';
+import { Link } from 'react-router-dom';
 import moment from 'moment';
 import 'moment/locale/pt-br';
 import ClientHeader from '../../components/ui/ClientHeader';
+import { Calendar, Clock, Loader2, User, Building } from 'lucide-react';
 
 moment.locale('pt-br');
 
 export default function MyAppointments() {
   const [appointments, setAppointments] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
-    fetchAppointments();
+    const loadAppointments = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+          throw new Error("Usuário não autenticado. Por favor, faça login para ver seus agendamentos.");
+        }
+        const userAppointments = await fetchAppointmentsByClientId(user.id);
+        setAppointments(userAppointments);
+      } catch (err) {
+        console.error("Erro ao carregar agendamentos:", err);
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadAppointments();
   }, []);
 
-  const fetchAppointments = async () => {
-    try {
-      setLoading(true);
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
-      
-      if (userError || !user) {
-        setLoading(false);
-        return;
-      }
+  const upcomingAppointments = appointments.filter(a => moment(a.start_time).isAfter(moment()));
+  const pastAppointments = appointments.filter(a => moment(a.start_time).isBefore(moment()));
 
-      // A busca agora depende da FK que criamos no SQL acima
-      const { data, error } = await supabase
-        .from('slots')
-        .select(`
-          *,
-          salons (name, address),
-          services (name, price)
-        `)
-        .eq('client_id', user.id)
-        .order('start_time', { ascending: false }); // Mostra os mais recentes primeiro
-
-      if (error) throw error;
-      setAppointments(data || []);
-    } catch (err) {
-      console.error("Erro ao buscar agendamentos:", err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const upcoming = appointments.filter(a => moment(a.start_time).isAfter(moment()));
-  const history = appointments.filter(a => moment(a.start_time).isBefore(moment()));
-
-  if (loading) return (
-    <div style={{ backgroundColor: COLORS.offWhite, minHeight: '100vh' }}>
-      <ClientHeader />
-      <div style={styles.center}>
-        <Loader2 size={32} className="animate-spin" style={{ margin: '0 auto 10px', color: COLORS.sageGreen }} />
-        <p>Carregando seus agendamentos...</p>
+  const AppointmentCard = ({ slot }) => (
+    <div className="bg-brand-card p-5 rounded-2xl border border-brand-muted/10 shadow-sm transition-all hover:shadow-lg hover:border-brand-primary/20">
+      <div className="flex justify-between items-start gap-4">
+        <div>
+          <p className="font-black text-brand-text text-lg">{slot.services.name}</p>
+          <Link to={`/booking/${slot.salons.slug}`} className="flex items-center gap-2 text-sm text-brand-muted mt-1 hover:text-brand-primary transition-colors">
+            <Building size={14} />
+            <span className="font-semibold">{slot.salons.name}</span>
+          </Link>
+        </div>
+        <span className="text-brand-primary font-extrabold text-lg whitespace-nowrap">R$ {Number(slot.services.price).toFixed(2)}</span>
+      </div>
+      <div className="mt-4 pt-4 border-t border-brand-surface space-y-3 text-sm">
+        <div className="flex items-center gap-3 text-brand-muted">
+          <Calendar size={16} className="text-brand-primary" />
+          <span className="font-medium">{moment(slot.start_time).format('dddd, D [de] MMMM [de] YYYY')}</span>
+        </div>
+        <div className="flex items-center gap-3 text-brand-muted">
+          <Clock size={16} className="text-brand-primary" />
+          <span className="font-medium">{moment(slot.start_time).format('HH:mm')}</span>
+        </div>
+        <div className="flex items-center gap-3 text-brand-muted">
+          <User size={16} className="text-brand-primary" />
+          <span className="font-medium">Com {slot.professionals.name}</span>
+        </div>
       </div>
     </div>
   );
 
+  if (loading) {
+    return (
+      <div className="bg-brand-surface min-h-screen">
+        <ClientHeader />
+        <div className="text-center p-20 flex flex-col items-center justify-center text-brand-muted">
+          <Loader2 className="animate-spin text-brand-primary mb-4" size={32} />
+          <p className="font-semibold">Carregando seus agendamentos...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div style={{ backgroundColor: COLORS.offWhite, minHeight: '100vh' }}>
+    <div className="bg-brand-surface min-h-screen">
       <ClientHeader />
-      <div style={styles.container}>
-        <h2 style={styles.title}>Meus Agendamentos</h2>
+      <main className="max-w-3xl mx-auto px-4 py-8 animate-in fade-in duration-500">
+        <h1 className="text-3xl font-black text-brand-text tracking-tight mb-8">Meus Agendamentos</h1>
+        
+        {error && <p className="text-center p-12 text-red-500 bg-red-500/10 rounded-2xl">{error}</p>}
 
-        {appointments.length === 0 ? (
-          <div style={styles.emptyState}>
-            <AlertCircle size={48} color="#D1D5DB" style={{ marginBottom: '16px' }} />
-            <p style={{ fontWeight: '500' }}>Você ainda não possui agendamentos.</p>
-            <p style={{ fontSize: '14px', color: '#888', marginTop: '4px' }}>Encontre um salão e agende agora mesmo!</p>
-          </div>
-        ) : (
+        {!error && (
           <>
-            {upcoming.length > 0 && (
-              <section style={{ marginBottom: '32px' }}>
-                <h3 style={styles.sectionTitle}>Próximos</h3>
-                {upcoming.map(app => (
-                  <AppointmentCard key={app.id} app={app} isUpcoming />
-                ))}
-              </section>
-            )}
+            <section>
+              <h2 className="text-xl font-bold text-brand-text mb-4">Próximos</h2>
+              {upcomingAppointments.length > 0 ? (
+                <div className="grid md:grid-cols-2 gap-4">
+                  {upcomingAppointments.map(slot => <AppointmentCard key={slot.id} slot={slot} />)}
+                </div>
+              ) : (
+                <div className="text-brand-muted text-center py-10 bg-brand-card rounded-2xl border border-dashed border-brand-muted/10"><p>Você não tem agendamentos futuros.</p></div>
+              )}
+            </section>
 
-            {history.length > 0 && (
-              <section>
-                <h3 style={styles.sectionTitle}>Histórico</h3>
-                {history.map(app => (
-                  <AppointmentCard key={app.id} app={app} isUpcoming={false} />
-                ))}
-              </section>
-            )}
+            <section className="mt-12">
+              <h2 className="text-xl font-bold text-brand-text mb-4">Anteriores</h2>
+              {pastAppointments.length > 0 ? (
+                <div className="grid md:grid-cols-2 gap-4">
+                  {pastAppointments.map(slot => <AppointmentCard key={slot.id} slot={slot} />)}
+                </div>
+              ) : (
+                <div className="text-brand-muted text-center py-10 bg-brand-card rounded-2xl border border-dashed border-brand-muted/10"><p>Nenhum agendamento anterior encontrado.</p></div>
+              )}
+            </section>
           </>
         )}
-      </div>
+      </main>
     </div>
   );
 }
-
-function AppointmentCard({ app, isUpcoming }) {
-  const price = app.services?.price || 0;
-
-  return (
-    <div style={{...styles.card, borderLeft: isUpcoming ? `4px solid ${COLORS.sageGreen}` : '4px solid #D1D5DB'}}>
-      <div style={styles.cardHeader}>
-        <div>
-          <span style={styles.salonName}>{app.salons?.name || 'Salão não identificado'}</span>
-          <p style={styles.salonAddress}>{app.salons?.address}</p>
-        </div>
-        <span style={{
-          ...styles.statusBadge, 
-          backgroundColor: isUpcoming ? '#E8F5E9' : '#F3F4F6',
-          color: isUpcoming ? '#1B5E20' : '#4B5563'
-        }}>
-          {isUpcoming ? 'Confirmado' : 'Realizado'}
-        </span>
-      </div>
-      
-      <div style={styles.serviceRow}>
-        <div style={styles.infoItem}>
-          <Calendar size={14} color="#6B7280" />
-          <span>{moment(app.start_time).format('DD [de] MMMM')}</span>
-        </div>
-        <div style={styles.infoItem}>
-          <Clock size={14} color="#6B7280" />
-          <span>{moment(app.start_time).format('HH:mm')}</span>
-        </div>
-      </div>
-
-      <div style={styles.footer}>
-        <div style={styles.serviceName}>{app.services?.name || 'Serviço'}</div>
-        <div style={styles.price}>R$ {Number(price).toFixed(2)}</div>
-      </div>
-    </div>
-  );
-}
-
-const styles = {
-  container: { maxWidth: '500px', margin: '0 auto', padding: '24px 20px 60px' },
-  title: { fontSize: '1.75rem', fontWeight: '800', color: COLORS.deepCharcoal, marginBottom: '24px' },
-  sectionTitle: { fontSize: '0.75rem', color: '#9CA3AF', marginBottom: '16px', textTransform: 'uppercase', letterSpacing: '1.2px', fontWeight: '700' },
-  center: { display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', color: '#666' },
-  emptyState: { textAlign: 'center', padding: '60px 20px', backgroundColor: 'white', borderRadius: '24px', border: '1px solid #E5E7EB' },
-  card: { backgroundColor: 'white', borderRadius: '16px', padding: '20px', marginBottom: '16px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)', transition: 'all 0.2s' },
-  cardHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' },
-  salonName: { fontSize: '16px', fontWeight: '700', color: COLORS.deepCharcoal, display: 'block' },
-  salonAddress: { fontSize: '12px', color: '#6B7280', marginTop: '2px' },
-  statusBadge: { fontSize: '11px', padding: '4px 10px', borderRadius: '99px', fontWeight: '700' },
-  serviceRow: { display: 'flex', gap: '20px', marginBottom: '16px', color: '#4B5563', fontSize: '14px' },
-  infoItem: { display: 'flex', alignItems: 'center', gap: '6px' },
-  footer: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #F3F4F6', paddingTop: '16px' },
-  serviceName: { color: COLORS.deepCharcoal, fontWeight: '600', fontSize: '15px' },
-  price: { fontWeight: '700', color: COLORS.sageGreen, fontSize: '16px' }
-};

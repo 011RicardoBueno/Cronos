@@ -1,11 +1,12 @@
 import { supabase } from "../lib/supabase";
+import moment from 'moment';
 
 // --- BUSCA DE DADOS BÁSICOS ---
 
 export const fetchSalonData = async (userId) => {
   const { data, error } = await supabase
     .from("users")
-    .select("salon_id, salons(id, name)")
+    .select("salon_id, salons(*)") // Fetch all salon data
     .eq("id", userId)
     .single();
   
@@ -13,13 +14,29 @@ export const fetchSalonData = async (userId) => {
   return data;
 };
 
+export const fetchSalonByIdOrSlug = async (identifier) => {
+  const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(identifier);
+  const query = supabase.from('salons').select('*');
+  
+  if (isUUID) {
+    query.eq('id', identifier);
+  } else {
+    query.eq('slug', identifier);
+  }
+
+  const { data, error } = await query.single();
+  if (error) throw new Error("Salão não encontrado");
+  return data;
+};
+
 export const fetchServicesAndProfessionals = async (salonId) => {
   const [servicesRes, professionalsRes] = await Promise.all([
-    supabase.from("services").select("*").eq("salon_id", salonId).order("created_at"),
+    supabase.from("services").select("*").eq("salon_id", salonId).order("name"),
     supabase.from("professionals").select("*").eq("salon_id", salonId).order("name"),
   ]);
   
-  return { servicesRes, professionalsRes };
+  if (servicesRes.error || professionalsRes.error) throw servicesRes.error || professionalsRes.error;
+  return { services: servicesRes.data || [], professionals: professionalsRes.data || [] };
 };
 
 export const fetchProfessionalsDetailed = async (salonId) => {
@@ -29,6 +46,16 @@ export const fetchProfessionalsDetailed = async (salonId) => {
     .eq('salon_id', salonId)
     .order('avg_rating', { ascending: false });
   
+  if (error) throw error;
+  return data;
+};
+
+export const fetchProfessionalServices = async (professionalIds) => {
+  if (!professionalIds || professionalIds.length === 0) return [];
+  const { data, error } = await supabase
+    .from('professional_services')
+    .select('*')
+    .in('professional_id', professionalIds);
   if (error) throw error;
   return data;
 };
@@ -52,6 +79,22 @@ export const createBookingSlot = async (bookingData) => {
 
   if (error) throw error;
   return data;
+};
+
+export const fetchAppointmentsByClientId = async (userId) => {
+  const { data, error } = await supabase
+    .from('slots')
+    .select(`
+      *,
+      services (name, price),
+      professionals (name, avatar_url),
+      salons (name, slug, logo_url)
+    `)
+    .eq('client_id', userId)
+    .order('start_time', { ascending: false });
+
+  if (error) throw error;
+  return data || [];
 };
 
 export const fetchProfessionalSlots = async (professionalId, startDate, endDate) => {
@@ -93,6 +136,44 @@ export const updateSlotTime = async (slotId, newStart) => {
   return data;
 };
 
+export const fetchRecentAppointments = async (salonId, limit = 5) => {
+  const { data, error } = await supabase
+    .from('slots')
+    .select('*, services(name)')
+    .eq('salon_id', salonId)
+    .order('created_at', { ascending: false })
+    .limit(limit);
+  
+  if (error) throw error;
+  return data;
+};
+
+export const fetchSlotById = async (slotId) => {
+  const { data, error } = await supabase
+    .from('slots')
+    .select('*, services(name)')
+    .eq('id', slotId)
+    .single();
+  
+  if (error) throw error;
+  return data;
+};
+
+export const fetchBusySlotsForDate = async (professionalId, date) => {
+  const startDay = moment(date).startOf('day').toISOString();
+  const endDay = moment(date).endOf('day').toISOString();
+
+  const { data, error } = await supabase
+    .from('slots')
+    .select('start_time, end_time')
+    .eq('professional_id', professionalId)
+    .gte('start_time', startDay)
+    .lte('start_time', endDay);
+  
+  if (error) throw error;
+  return data || [];
+};
+
 // --- MOTOR FINANCEIRO E CHECKOUT ---
 
 export const processSale = async ({ 
@@ -103,64 +184,17 @@ export const processSale = async ({
   paymentMethod = 'Presencial'
 }) => {
   try {
-    const transactionRecords = [];
-
-    // 1. Preparar registros para a tabela finance_transactions
-    items.forEach(item => {
-      const commissionValue = (item.price * (item.commission_rate / 100));
-      
-      transactionRecords.push({
-        salon_id: salonId,
-        professional_id: item.professional_id, // Profissional específico do item
-        slot_id: slotId,
-        amount: item.price,
-        professional_commission: commissionValue,
-        description: item.description || item.name,
-        type: item.type, // 'service' ou 'product'
-        payment_method: paymentMethod
-      });
+    // This entire logic is now handled by a single, atomic RPC call
+    // to the 'process_sale' function in the database.
+    const { error } = await supabase.rpc('process_sale', {
+      p_salon_id: salonId,
+      p_slot_id: slotId,
+      p_items: items,
+      p_advance_amount: advanceAmount,
+      p_payment_method: paymentMethod
     });
 
-    // 2. Registrar no financeiro
-    const { error: transError } = await supabase
-      .from('finance_transactions')
-      .insert(transactionRecords);
-    
-    if (transError) throw transError;
-
-    // 3. Registrar Adiantamento/Vale se houver
-    if (advanceAmount > 0) {
-      // Usamos o professional_id do slot (quem atendeu o cliente) para o vale principal
-      const mainProfessionalId = items.find(i => i.type === 'service')?.professional_id;
-
-      const { error: advError } = await supabase
-        .from('staff_advances')
-        .insert([{
-          salon_id: salonId,
-          professional_id: mainProfessionalId,
-          amount: advanceAmount,
-          description: `Desconto Checkout - Slot ${slotId?.substring(0,8)}`
-        }]);
-      if (advError) throw advError;
-    }
-
-    // 4. Marcar agendamento como finalizado
-    if (slotId) {
-      const { error: slotError } = await supabase
-        .from('slots')
-        .update({ status: 'completed' })
-        .eq('id', slotId);
-      if (slotError) throw slotError;
-    }
-
-    // 5. Baixa de estoque simplificada (Opcional: Requer RPC no Postgres)
-    const productItems = items.filter(i => i.type === 'product');
-    for (const item of productItems) {
-      await supabase.rpc('decrement_product_stock', { 
-        pid: item.id, 
-        qty: 1 
-      }).catch(err => console.warn("Estoque não atualizado:", err));
-    }
+    if (error) throw error;
 
     return { success: true };
   } catch (error) {
@@ -180,6 +214,39 @@ export const fetchProducts = async (salonId) => {
   
   if (error) throw error;
   return data;
+};
+
+export const fetchLowStockProducts = async (salonId, { threshold = 10, limit = 5 } = {}) => {
+  const { data, error } = await supabase
+    .from('products')
+    .select('id, name, stock_quantity')
+    .eq('salon_id', salonId)
+    .lt('stock_quantity', threshold)
+    .order('stock_quantity', { ascending: true })
+    .limit(limit);
+  
+  if (error) throw error;
+  return data || [];
+};
+
+// --- REALTIME ---
+
+export const subscribeToNewAppointments = (salonId, callback) => {
+  const channel = supabase.channel(`realtime:slots:${salonId}`);
+  
+  channel.on(
+    'postgres_changes',
+    { event: 'INSERT', schema: 'public', table: 'slots', filter: `salon_id=eq.${salonId}` },
+    callback
+  ).subscribe();
+
+  return channel;
+};
+
+export const unsubscribeFromChannel = (channel) => {
+  if (channel) {
+    supabase.removeChannel(channel);
+  }
 };
 
 export const createProduct = async (productData) => {

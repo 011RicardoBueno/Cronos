@@ -1,49 +1,99 @@
-# 🕒 Cronos - Gestão Inteligente para Salões e Profissionais
+# Cronos บริหารจัดการ
 
-![Status do Projeto](https://img.shields.io/badge/status-em%20desenvolvimento-green)
-![React](https://img.shields.io/badge/react-%2320232a.svg?style=flat&logo=react&logoColor=%2361DAFB)
-![Supabase](https://img.shields.io/badge/Supabase-3ECF8E?style=flat&logo=supabase&logoColor=white)
-![Vite](https://img.shields.io/badge/vite-%23646CFF.svg?style=flat&logo=vite&logoColor=white)
+**Cronos** é um sistema de gestão (SaaS) completo para salões de beleza, barbearias e estúdios. A plataforma foi desenhada para centralizar a gestão de agendamentos, clientes, finanças e operações do dia a dia, fornecendo ao mesmo tempo uma experiência de agendamento simples e moderna para o cliente final.
 
-O **Cronos** é um sistema de agendamento e gestão multi-tenant projetado especificamente para o setor de beleza e bem-estar. O objetivo é simplificar a conexão entre profissionais e clientes através de uma interface intuitiva, dashboards de performance e automação de horários.
+![Placeholder para Screenshot da Dashboard](https://via.placeholder.com/800x400.png?text=Insira+um+screenshot+da+dashboard+aqui)
 
 ---
 
-## 🚀 Funcionalidades Principais
+## ✨ Funcionalidades Principais
 
-### Para o Salão/Profissional
-- **Multi-tenancy:** Isolamento completo de dados entre diferentes salões.
-- **Dashboard de Performance:** Visualização clara de faturamento, novos clientes e taxa de ocupação.
-- **Gestão de Equipe:** Controle de profissionais, serviços vinculados e horários individuais.
-- **Configuração de Slots:** Algoritmo dinâmico para cálculo de disponibilidade baseado na duração de cada serviço.
+O sistema é dividido em dois ecossistemas principais: o painel de gestão para o administrador e a área do cliente.
 
-### Para o Cliente
-- **Onboarding Intuitivo:** Fluxo amigável para novos clientes.
-- **Página de Agendamento Pública:** Cada estabelecimento possui um link exclusivo para reservas online.
-- **Exploração de Serviços:** Navegação por categorias e profissionais.
+### 👨‍💼 Painel do Administrador
 
----
+*   **Dashboard de Negócios:** Visão geral com as principais métricas e atividades do salão.
+*   **Gestão de Agenda:** Calendário completo para visualizar e gerenciar todos os agendamentos.
+*   **Gestão de Serviços e Produtos:** Cadastro e edição de serviços e produtos oferecidos, com base para futuro controle de estoque.
+*   **Gestão de Profissionais:** Adicione e gerencie os profissionais da sua equipe.
+*   **CRM de Clientes:** Base de clientes com potencial para histórico de visitas e segmentação.
+*   **Painel de Fila de Espera:** Exiba uma fila de atendimento em tempo real no seu estabelecimento.
+*   **Módulo Financeiro:** Acompanhe o fluxo de caixa e analise o desempenho com gráficos e relatórios.
 
-## 🛠️ Tecnologias e Arquitetura
+### 💇‍♀️ Área do Cliente
 
-O projeto utiliza uma stack moderna focada em performance e escalabilidade:
-
-- **Frontend:** [React](https://reactjs.org/) com [Vite](https://vitejs.dev/) para um desenvolvimento rápido e build otimizado.
-- **Backend-as-a-Service:** [Supabase](https://supabase.com/) para autenticação, banco de dados PostgreSQL e tempo real.
-- **Estilização:** CSS Modules para isolamento de escopo e design responsivo.
-- **Qualidade de Código:** - [Jest](https://jestjs.io/) para testes unitários de lógica de negócio.
-  - [ESLint](https://eslint.org/) para padronização de código.
+*   **Exploração e Descoberta:** Encontre salões e serviços disponíveis.
+*   **Agendamento Simplificado:** Marque horários de forma rápida e intuitiva.
+*   **Meus Agendamentos:** Visualize e gerencie seus próprios horários marcados.
+*   **Feedback:** Avalie os serviços prestados após o atendimento.
 
 ---
 
-## 📁 Estrutura de Pastas (Resumo)
+## 🚀 Tecnologias Utilizadas
 
-```text
-src/
-├── components/    # Componentes UI reutilizáveis e layouts
-├── context/       # Gerenciamento de estado global (Auth e Salon)
-├── hooks/         # Lógica extraída (Cálculo de slots, filtros)
-├── lib/           # Configurações de bibliotecas externas (Supabase)
-├── pages/         # Páginas da aplicação (Admin e Client-side)
-├── services/      # Comunicação direta com a API/Supabase
-└── utils/         # Funções auxiliares e cálculos matemáticos
+*   **Frontend:** React, Vite, Tailwind CSS
+*   **Backend & Banco de Dados:** Supabase
+*   **Roteamento:** React Router
+*   **Gerenciamento de Estado:** React Context
+*   **Ícones:** Lucide React
+*   **Estilização:** PostCSS, Radix UI (inferido)
+
+---
+
+## 🏁 Começando
+
+Para rodar este projeto localmente, siga os passos abaixo.
+
+### Pré-requisitos
+
+*   Node.js (v18 ou superior)
+*   npm ou yarn
+
+### Instalação
+
+1.  **Clone o repositório:**
+    ```bash
+    git clone https://github.com/seu-usuario/cronos.git
+    cd cronos
+    ```
+
+2.  **Instale as dependências:**
+    ```bash
+    npm install
+    ```
+
+3.  **Configure as variáveis de ambiente:**
+    Crie um arquivo `.env.local` na raiz do projeto, copiando o exemplo de `.env.example` (se existir). Você precisará preencher com as suas chaves do Supabase.
+    ```
+    VITE_SUPABASE_URL=SUA_URL_DO_SUPABASE
+    VITE_SUPABASE_ANON_KEY=SUA_CHAVE_ANON_DO_SUPABASE
+    ```
+
+4.  **Rode o servidor de desenvolvimento:**
+    ```bash
+    npm run dev
+    ```
+
+    Abra [http://localhost:5173](http://localhost:5173) no seu navegador para ver o resultado.
+
+---
+
+## 🔮 Próximos Passos e Melhorias
+
+Este projeto tem uma base sólida, mas ainda há espaço para evoluir. Algumas funcionalidades planejadas ou sugeridas incluem:
+
+*   [ ] **Gestão de Estoque:** Implementar o controle de baixa de produtos.
+*   [ ] **Controle de Acesso por Papel (RBAC):** Criar perfis `Gerente` e `Profissional` com diferentes níveis de permissão.
+*   [ ] **Notificações Automáticas:** Lembretes de agendamento por E-mail ou WhatsApp.
+*   [ ] **CRM Avançado:** Detalhamento do perfil do cliente com histórico completo e segmentação para marketing.
+*   [ ] **Análise de Desempenho:** Métricas de retenção, performance por profissional e popularidade de serviços.
+
+---
+
+## 📄 Licença
+
+Este projeto é distribuído sob a licença MIT. Veja o arquivo `LICENSE` para mais detalhes.
+
+---
+
+Feito com ❤️ por [Seu Nome](https://github.com/seu-usuario)

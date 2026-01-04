@@ -1,11 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useSalon } from '../../context/SalonContext';
-import { COLORS } from '../../constants/dashboard';
 import { useNavigate } from 'react-router-dom';
 import { 
   Users, MessageCircle, Calendar, Search, 
-  Crown, ArrowLeft, X, ShoppingBag, CheckCircle, Clock
+  Crown, ArrowLeft, X, ShoppingBag, CheckCircle, Clock, Loader2
 } from 'lucide-react';
 import moment from 'moment';
 
@@ -16,6 +15,8 @@ export default function Clients() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   
+  const [currentPage, setCurrentPage] = useState(1);
+  const clientsPerPage = 8;
   // Estados para o Histórico Detalhado
   const [selectedClient, setSelectedClient] = useState(null);
   const [clientHistory, setClientHistory] = useState([]);
@@ -63,6 +64,7 @@ export default function Clients() {
 
         const sortedClients = Object.values(clientMap).sort((a, b) => b.totalSpent - a.totalSpent);
         setClients(sortedClients);
+
       } catch (err) {
         console.error("Erro ao carregar clientes:", err);
       } finally {
@@ -106,6 +108,17 @@ export default function Clients() {
     return name.includes(searchTerm.toLowerCase()) || phone.includes(searchTerm);
   });
 
+  // --- Pagination Logic ---
+  const indexOfLastClient = currentPage * clientsPerPage;
+  const indexOfFirstClient = indexOfLastClient - clientsPerPage;
+  const currentClients = filteredClients.slice(indexOfFirstClient, indexOfLastClient);
+  const totalPages = Math.ceil(filteredClients.length / clientsPerPage);
+
+  const paginate = (pageNumber) => {
+    if (pageNumber > 0 && pageNumber <= totalPages) {
+      setCurrentPage(pageNumber);
+    }
+  };
   const handleWhatsApp = (e, phone, name) => {
     e.stopPropagation(); // Evita abrir o modal ao clicar no botão de Whats
     if (!phone) return alert("Telefone não encontrado.");
@@ -115,145 +128,167 @@ export default function Clients() {
   };
 
   return (
-    <div style={styles.page}>
-      <header style={styles.header}>
-        <div style={styles.headerLeft}>
-          <button onClick={() => navigate(-1)} style={styles.backBtn}>
-            <ArrowLeft size={20} color={COLORS.deepCharcoal} />
-          </button>
+    <div className="min-h-screen bg-brand-surface p-4 md:p-8 transition-colors duration-300">
+      <div className="max-w-7xl mx-auto">
+        
+        {/* HEADER */}
+        <header className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
           <div>
-            <h1 style={styles.title}>Base de Clientes</h1>
-            <p style={styles.subtitle}>Gestão de fidelidade e faturamento real</p>
+            <h1 className="text-2xl font-bold text-brand-text">Base de Clientes</h1>
+            <p className="text-sm text-brand-muted">Gestão de fidelidade e faturamento real</p>
           </div>
-        </div>
-        <div style={styles.statsCard}>
-          <div style={styles.statItem}>
-            <Users size={16} color={COLORS.sageGreen} />
-            <span style={styles.statsValue}>{clients.length} Clientes</span>
+          <div className="bg-brand-card border border-brand-muted/20 px-5 py-2.5 rounded-xl shadow-sm flex items-center gap-2">
+            <Users size={18} className="text-brand-primary" />
+            <span className="font-bold text-brand-text">{clients.length} Clientes</span>
           </div>
-        </div>
-      </header>
+        </header>
 
-      <div style={styles.actionBar}>
-        <div style={styles.searchWrapper}>
-          <Search size={18} style={styles.searchIcon} />
+        {/* BUSCA */}
+        <div className="relative mb-8">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-brand-muted" size={20} />
           <input 
+            type="text"
             placeholder="Buscar por nome ou telefone..." 
-            style={styles.searchInput}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full bg-brand-card border border-brand-muted/20 rounded-2xl py-3 pl-12 pr-4 text-brand-text outline-none focus:ring-2 focus:ring-brand-primary/50 transition-all"
           />
         </div>
+
+        {/* GRID DE CLIENTES */}
+        {loading ? (
+          <div className="text-center p-10 text-brand-muted animate-pulse">Carregando clientes...</div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {currentClients.map((client) => {
+              const daysSinceLastVisit = moment().diff(moment(client.lastVisit), 'days');
+              const isInactive = daysSinceLastVisit > 30;
+              const isVIP = client.totalSpent > 500 || client.totalVisits > 5;
+
+              return (
+                <div 
+                  key={client.phone} 
+                  onClick={() => handleOpenHistory(client)}
+                  className="bg-brand-card rounded-3xl border border-brand-muted/20 p-6 hover:shadow-xl transition-all group cursor-pointer relative overflow-hidden"
+                >
+                  <div className="flex items-center gap-4 mb-6">
+                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-bold text-lg relative ${
+                      isVIP ? 'bg-amber-100 text-amber-600 ring-2 ring-amber-400/30' : 'bg-brand-surface text-brand-muted'
+                    }`}>
+                      {(client.name || "?")[0].toUpperCase()}
+                      {isVIP && <Crown size={14} className="absolute -top-1 -right-1 text-amber-500 fill-amber-500" />}
+                    </div>
+                    <div className="overflow-hidden">
+                      <h3 className="text-brand-text font-bold text-base truncate">{client.name}</h3>
+                      <p className="text-brand-muted text-xs">{client.phone}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-3 mb-6">
+                    <div className="flex-1 bg-brand-surface rounded-xl p-3 text-center">
+                      <span className="block text-[10px] font-bold text-brand-muted uppercase">Total Gasto</span>
+                      <span className="block text-sm font-black text-brand-primary">R$ {client.totalSpent.toFixed(2)}</span>
+                    </div>
+                    <div className="flex-1 bg-brand-surface rounded-xl p-3 text-center">
+                      <span className="block text-[10px] font-bold text-brand-muted uppercase">Visitas</span>
+                      <span className="block text-sm font-black text-brand-text">{client.totalVisits}</span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs text-brand-muted mb-4 font-medium">
+                    <div className="flex items-center gap-1">
+                      <Calendar size={12} />
+                      <span>{moment(client.lastVisit).format('DD/MM/YY')}</span>
+                    </div>
+                    {isInactive && <span className="bg-red-100 text-red-600 px-2 py-0.5 rounded-md">Ausente</span>}
+                  </div>
+
+                  <button 
+                    onClick={(e) => handleWhatsApp(e, client.phone, client.name)}
+                    className={`w-full py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-colors ${
+                      isInactive 
+                        ? 'bg-red-50 text-red-600 hover:bg-red-100' 
+                        : 'bg-brand-primary/10 text-brand-primary hover:bg-brand-primary/20'
+                    }`}
+                  >
+                    <MessageCircle size={16} />
+                    {isInactive ? 'Recuperar' : 'WhatsApp'}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* PAGINATION CONTROLS */}
+        {totalPages > 1 && (
+          <div className="flex justify-center items-center gap-4 mt-10">
+            <button 
+              onClick={() => paginate(currentPage - 1)} 
+              disabled={currentPage === 1}
+              className="px-4 py-2 bg-brand-card border border-brand-muted/20 rounded-lg font-semibold text-brand-text disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Anterior
+            </button>
+            <span className="text-brand-muted font-medium text-sm">
+              Página {currentPage} de {totalPages}
+            </span>
+            <button 
+              onClick={() => paginate(currentPage + 1)} 
+              disabled={currentPage === totalPages}
+              className="px-4 py-2 bg-brand-card border border-brand-muted/20 rounded-lg font-semibold text-brand-text disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Próxima
+            </button>
+          </div>
+        )}
       </div>
 
-      {loading ? (
-        <div style={styles.center}><p>Carregando clientes...</p></div>
-      ) : (
-        <div style={styles.grid}>
-          {filteredClients.map((client) => {
-            const daysSinceLastVisit = moment().diff(moment(client.lastVisit), 'days');
-            const isInactive = daysSinceLastVisit > 30;
-            const isVIP = client.totalSpent > 500 || client.totalVisits > 5;
-
-            return (
-              <div 
-                key={client.phone} 
-                style={styles.clientCard} 
-                onClick={() => handleOpenHistory(client)}
-              >
-                <div style={styles.clientHeader}>
-                  <div style={styles.clientInfo}>
-                    <div style={{
-                      ...styles.avatar,
-                      backgroundColor: isVIP ? '#FFF9E6' : COLORS.warmSand,
-                      border: isVIP ? '1px solid #FFD700' : 'none'
-                    }}>
-                      {(client.name || "?")[0].toUpperCase()}
-                      {isVIP && <Crown size={14} style={styles.vipIcon} />}
-                    </div>
-                    <div>
-                      <h3 style={styles.clientName}>{client.name}</h3>
-                      <p style={styles.clientPhone}>{client.phone}</p>
-                    </div>
-                  </div>
-                  {isVIP && <span style={styles.vipBadge}>VIP</span>}
-                </div>
-
-                <div style={styles.metricsRow}>
-                  <div style={styles.metricBox}>
-                    <span style={styles.metricLabel}>Total Gasto</span>
-                    <span style={{...styles.metricValue, color: COLORS.sageGreen}}>
-                      R$ {client.totalSpent.toFixed(2)}
-                    </span>
-                  </div>
-                  <div style={styles.metricBox}>
-                    <span style={styles.metricLabel}>Visitas</span>
-                    <span style={styles.metricValue}>{client.totalVisits}</span>
-                  </div>
-                </div>
-
-                <div style={styles.footerInfo}>
-                  <Calendar size={12} color="#999" />
-                  <span>Última: {moment(client.lastVisit).format('DD/MM/YY')}</span>
-                  {isInactive && <div style={styles.inactiveBadge}>{daysSinceLastVisit}d ausente</div>}
-                </div>
-
-                <button 
-                  onClick={(e) => handleWhatsApp(e, client.phone, client.name)}
-                  style={isInactive ? styles.actionBtnDanger : styles.actionBtnSuccess}
-                >
-                  <MessageCircle size={16} />
-                  {isInactive ? 'Recuperar' : 'WhatsApp'}
-                </button>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {/* MODAL DE HISTÓRICO (DRAWER) */}
+      {/* MODAL DE HISTÓRICO */}
       {selectedClient && (
-        <div style={styles.modalOverlay} onClick={() => setSelectedClient(null)}>
-          <div style={styles.drawer} onClick={e => e.stopPropagation()}>
-            <header style={styles.modalHeader}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in">
+          <div className="bg-brand-card w-full max-w-2xl rounded-3xl shadow-2xl border border-brand-muted/20 max-h-[85vh] flex flex-col">
+            
+            <div className="p-6 border-b border-brand-muted/10 flex justify-between items-center bg-brand-card rounded-t-3xl">
               <div>
-                <h2 style={styles.modalTitle}>{selectedClient.name}</h2>
-                <p style={styles.modalSubtitle}>{selectedClient.phone}</p>
+                <h3 className="text-xl font-bold text-brand-text">{selectedClient.name}</h3>
+                <p className="text-sm text-brand-muted">{selectedClient.phone}</p>
               </div>
-              <button onClick={() => setSelectedClient(null)} style={styles.closeBtn}><X /></button>
-            </header>
+              <button onClick={() => setSelectedClient(null)} className="p-2 hover:bg-brand-surface rounded-full transition-colors text-brand-muted"><X size={20} /></button>
+            </div>
 
-            <div style={styles.modalBody}>
-              <h4 style={styles.sectionTitle}>Linha do Tempo</h4>
+            <div className="p-6 overflow-y-auto">
+              <h4 className="text-xs font-bold text-brand-muted uppercase tracking-widest mb-6">Histórico de Atividades</h4>
               {loadingHistory ? (
-                <p>Carregando histórico...</p>
+                <div className="flex justify-center p-8"><Loader2 className="animate-spin text-brand-primary" /></div>
               ) : (
-                clientHistory.map((visit, idx) => (
-                  <div key={idx} style={styles.historyItem}>
-                    <div style={styles.historyDot} />
-                    <div style={styles.historyContent}>
-                      <div style={styles.historyTop}>
-                        <span style={styles.historyDate}>
-                          {moment(visit.start_time).format('DD [de] MMMM, YYYY')}
-                        </span>
-                        <span style={styles.historyTime}>
-                          <Clock size={10} /> {moment(visit.start_time).format('HH:mm')}
-                        </span>
+                <div className="space-y-6 relative before:absolute before:left-[7px] before:top-2 before:bottom-2 before:w-[2px] before:bg-brand-muted/10">
+                  {clientHistory.map((visit, idx) => (
+                    <div key={idx} className="relative pl-8">
+                      <div className="absolute left-0 top-1.5 w-4 h-4 rounded-full bg-brand-primary border-4 border-brand-card shadow-sm z-10" />
+                      
+                      <div className="flex justify-between items-start mb-1">
+                        <span className="font-bold text-brand-text text-sm">{moment(visit.start_time).format('DD [de] MMMM, YYYY')}</span>
+                        <span className="text-xs text-brand-muted flex items-center gap-1"><Clock size={10} /> {moment(visit.start_time).format('HH:mm')}</span>
                       </div>
-                      <p style={styles.historyService}>
-                        <strong>{visit.services?.name}</strong> com {visit.professionals?.name}
+                      
+                      <p className="text-sm text-brand-text mb-2">
+                        <span className="font-medium">{visit.services?.name}</span> <span className="text-brand-muted">com</span> {visit.professionals?.name}
                       </p>
-                      <div style={styles.historyTags}>
+                      
+                      <div className="flex flex-wrap gap-2">
                         {visit.finance_transactions?.map((t, tid) => (
-                          <span key={tid} style={t.type === 'product' ? styles.tagProduct : styles.tagService}>
+                          <span key={tid} className={`text-[10px] font-bold px-2 py-1 rounded-lg flex items-center gap-1.5 ${
+                            t.type === 'product' ? 'bg-blue-100 text-blue-600' : 'bg-brand-primary/10 text-brand-primary'
+                          }`}>
                             {t.type === 'product' ? <ShoppingBag size={10}/> : <CheckCircle size={10}/>}
                             R$ {Number(t.amount).toFixed(2)} ({t.payment_method})
                           </span>
                         ))}
                       </div>
                     </div>
-                  </div>
-                ))
+                  ))}
+                </div>
               )}
             </div>
           </div>
@@ -262,55 +297,3 @@ export default function Clients() {
     </div>
   );
 }
-
-const styles = {
-  page: { padding: '24px', maxWidth: '1200px', margin: '0 auto', backgroundColor: COLORS.offWhite, minHeight: '100vh' },
-  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' },
-  headerLeft: { display: 'flex', alignItems: 'center', gap: '16px' },
-  backBtn: { background: 'white', border: 'none', padding: '12px', borderRadius: '14px', cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', display: 'flex', alignItems: 'center' },
-  title: { fontSize: '24px', fontWeight: '800', color: COLORS.deepCharcoal, margin: 0 },
-  subtitle: { color: '#777', margin: '4px 0 0 0', fontSize: '14px' },
-  statsCard: { backgroundColor: 'white', padding: '12px 20px', borderRadius: '16px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' },
-  statItem: { display: 'flex', alignItems: 'center', gap: '10px' },
-  statsValue: { fontWeight: '700', fontSize: '15px', color: COLORS.deepCharcoal },
-  actionBar: { marginBottom: '24px' },
-  searchWrapper: { position: 'relative' },
-  searchIcon: { position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: '#AAA' },
-  searchInput: { width: '100%', padding: '16px 16px 16px 48px', borderRadius: '16px', border: '1px solid #E2E8F0', boxSizing: 'border-box', fontSize: '15px', outline: 'none' },
-  grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '20px' },
-  clientCard: { backgroundColor: 'white', borderRadius: '20px', padding: '20px', border: '1px solid #EDF2F7', cursor: 'pointer', transition: 'all 0.2s', position: 'relative' },
-  clientHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' },
-  clientInfo: { display: 'flex', alignItems: 'center', gap: '14px' },
-  avatar: { width: '48px', height: '48px', borderRadius: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', position: 'relative', color: COLORS.deepCharcoal, fontSize: '18px' },
-  vipIcon: { position: 'absolute', top: -6, right: -6, color: '#FFD700', fill: '#FFD700' },
-  vipBadge: { backgroundColor: '#FFF9E6', color: '#B7791F', padding: '4px 8px', borderRadius: '6px', fontSize: '10px', fontWeight: '800' },
-  clientName: { fontSize: '16px', fontWeight: '700', margin: 0 },
-  clientPhone: { fontSize: '13px', color: '#888', margin: '2px 0 0 0' },
-  metricsRow: { display: 'flex', gap: '12px', marginBottom: '20px' },
-  metricBox: { flex: 1, backgroundColor: '#F7FAFC', padding: '12px', borderRadius: '12px', textAlign: 'center' },
-  metricLabel: { display: 'block', fontSize: '10px', color: '#A0AEC0', textTransform: 'uppercase', fontWeight: '700' },
-  metricValue: { display: 'block', fontSize: '15px', fontWeight: '800' },
-  footerInfo: { display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: '#718096', marginBottom: '20px' },
-  inactiveBadge: { backgroundColor: '#FFF5F5', color: '#C53030', padding: '3px 8px', borderRadius: '6px', fontWeight: '700', marginLeft: 'auto' },
-  actionBtnSuccess: { width: '100%', padding: '14px', borderRadius: '14px', border: 'none', backgroundColor: '#F0FDF4', color: '#166534', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', cursor: 'pointer' },
-  actionBtnDanger: { width: '100%', padding: '14px', borderRadius: '14px', border: 'none', backgroundColor: '#FFF5F5', color: '#C53030', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', cursor: 'pointer' },
-  center: { textAlign: 'center', padding: '80px', color: '#718096' },
-
-  // ESTILOS DO MODAL / DRAWER
-  modalOverlay: { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.4)', zIndex: 1000, display: 'flex', justifyContent: 'flex-end' },
-  drawer: { width: '100%', maxWidth: '450px', backgroundColor: 'white', height: '100%', padding: '32px', boxShadow: '-5px 0 25px rgba(0,0,0,0.1)', overflowY: 'auto' },
-  modalHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '32px' },
-  modalTitle: { fontSize: '20px', fontWeight: '800', margin: 0 },
-  modalSubtitle: { fontSize: '14px', color: '#888', margin: '4px 0 0 0' },
-  closeBtn: { background: '#F7FAFC', border: 'none', padding: '8px', borderRadius: '10px', cursor: 'pointer' },
-  sectionTitle: { fontSize: '14px', fontWeight: '700', textTransform: 'uppercase', color: '#A0AEC0', marginBottom: '20px', letterSpacing: '1px' },
-  historyItem: { position: 'relative', paddingLeft: '24px', paddingBottom: '32px', borderLeft: '2px solid #EDF2F7' },
-  historyDot: { position: 'absolute', left: '-7px', top: '0', width: '12px', height: '12px', borderRadius: '50%', backgroundColor: COLORS.sageGreen, border: '2px solid white' },
-  historyTop: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' },
-  historyDate: { fontSize: '13px', fontWeight: '700', color: COLORS.deepCharcoal },
-  historyTime: { fontSize: '11px', color: '#A0AEC0', display: 'flex', alignItems: 'center', gap: '4px' },
-  historyService: { fontSize: '14px', color: '#4A5568', margin: '0 0 12px 0' },
-  historyTags: { display: 'flex', gap: '8px', flexWrap: 'wrap' },
-  tagService: { backgroundColor: '#F0FDF4', color: '#166534', padding: '5px 10px', borderRadius: '8px', fontSize: '11px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '6px' },
-  tagProduct: { backgroundColor: '#EFF6FF', color: '#1E40AF', padding: '5px 10px', borderRadius: '8px', fontSize: '11px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '6px' }
-};

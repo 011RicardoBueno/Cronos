@@ -1,14 +1,15 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { Home, Calendar, Users, DollarSign, Box, Settings, X } from 'lucide-react';
+import { Home, Calendar, Users, DollarSign, Box, Settings, X, Scissors, List } from 'lucide-react';
 
 export default function Sidebar({ isOpen, onClose }) {
   const links = [
     { to: '/', label: 'Dashboard', icon: <Home size={18} /> },
     { to: '/agenda', label: 'Agenda', icon: <Calendar size={18} /> },
     { to: '/profissionais', label: 'Profissionais', icon: <Users size={18} /> },
+    { to: '/servicos', label: 'Serviços', icon: <Scissors size={18} /> },
+    { to: '/analytics', label: 'Financeiro', icon: <DollarSign size={18} /> },
     { to: '/admin/clientes', label: 'Clientes', icon: <Users size={18} /> },
-    { to: '/financeiro', label: 'Financeiro', icon: <DollarSign size={18} /> },
     { to: '/produtos', label: 'Produtos', icon: <Box size={18} /> },
     { to: '/configuracoes', label: 'Configurações', icon: <Settings size={18} /> },
   ];

@@ -1,10 +1,18 @@
 import React, { useEffect, useState } from 'react';
-import { supabase } from '../../lib/supabase';
 import { useSalon } from '../../context/SalonContext';
+import { useAnalytics } from '../../hooks/useAnalytics';
 import toast from 'react-hot-toast';
 import { 
-  DollarSign, TrendingUp, Users, ArrowUpRight, Award, Calendar
-} from 'lucide-react';
+  DollarSign, TrendingUp, Users, ArrowUpRight, Award, Calendar, TrendingDown, PieChart
+, Loader2 } from 'lucide-react';
+import LowStockWidget from '../../components/widgets/LowStockWidget';
+import StatCard from '../../components/widgets/StatCard';
+import { 
+  fetchRecentAppointments, 
+  subscribeToNewAppointments, 
+  unsubscribeFromChannel,
+  fetchSlotById
+} from '../../services/supabaseService';
 
 // Importações do Chart.js
 import {
@@ -23,129 +31,72 @@ ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend)
 
 export default function BusinessDashboard() {
   const { salon } = useSalon();
-  const [metrics, setMetrics] = useState({
-    totalRevenue: 0,
-    ticketMedio: 0,
-    retentionRate: 0,
-    serviceRevenue: 0,
-    productRevenue: 0
-  });
+  const { insights, loading, fetchAnalytics } = useAnalytics();
   const [chartData, setChartData] = useState(null);
-  const [loading, setLoading] = useState(true);
   const [recentAppointments, setRecentAppointments] = useState([]);
 
   useEffect(() => {
     if (!salon?.id) return;
+    fetchAnalytics();
+  }, [salon?.id, fetchAnalytics]);
 
-    const fetchAnalytics = async () => {
-      try {
-        setLoading(true);
-        const { data, error } = await supabase
-          .from('finance_transactions')
-          .select(`
-            amount, type,
-            slots (client_phone, services (name))
-          `)
-          .eq('salon_id', salon.id);
-
-        if (error) throw error;
-
-        // Cálculos Financeiros
-        const total = data.reduce((acc, t) => acc + Number(t.amount), 0);
-        const serviceVal = data.filter(t => t.type === 'service').reduce((acc, t) => acc + Number(t.amount), 0);
-        const productVal = data.filter(t => t.type === 'product').reduce((acc, t) => acc + Number(t.amount), 0);
-        
-        const uniqueSlots = [...new Set(data.map(t => t.slot_id))].length;
-        const ticket = total / (uniqueSlots || 1);
-
-        // Lógica do Gráfico para Chart.js
-        const serviceMap = data.reduce((acc, t) => {
-          if (t.type === 'service' && t.slots?.services?.name) {
-            const name = t.slots.services.name;
-            acc[name] = (acc[name] || 0) + Number(t.amount);
-          }
-          return acc;
+  // Effect to process chart data when insights change
+  useEffect(() => {
+    if (insights?.professionalPerformance) {
+        const serviceMap = insights.professionalPerformance.reduce((acc, pro) => {
+            acc[pro.name] = (acc[pro.name] || 0) + pro.revenue;
+            return acc;
         }, {});
+        
+        const primaryColor = getComputedStyle(document.documentElement).getPropertyValue('--primary').trim() || '#556B2F';
 
         setChartData({
           labels: Object.keys(serviceMap),
           datasets: [{
-            label: 'Faturamento por Serviço',
+            label: 'Faturamento por Profissional',
             data: Object.values(serviceMap),
-            backgroundColor: '#556B2F', // brand primary hex
+            backgroundColor: primaryColor,
             borderRadius: 8,
             borderSkipped: false,
           }]
         });
-
-        setMetrics({
-          totalRevenue: total,
-          ticketMedio: ticket,
-          retentionRate: 75, // Simulado baseado no script de dummy data
-          serviceRevenue: serviceVal,
-          productRevenue: productVal
-        });
-
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchAnalytics();
-  }, [salon?.id]);
+    }
+  }, [insights]);
 
   // Realtime Notifications & Recent Appointments
   useEffect(() => {
     if (!salon?.id) return;
 
-    // 1. Fetch Initial Recent Appointments
     const fetchRecent = async () => {
-      const { data } = await supabase
-        .from('slots')
-        .select('*, services(name)')
-        .eq('salon_id', salon.id)
-        .order('created_at', { ascending: false })
-        .limit(5);
-      
-      if (data) setRecentAppointments(data);
+      try {
+        const data = await fetchRecentAppointments(salon.id);
+        setRecentAppointments(data);
+      } catch (error) {
+        console.error("Failed to fetch recent appointments:", error);
+        toast.error("Falha ao buscar agendamentos recentes.");
+      }
     };
     fetchRecent();
 
-    // 2. Subscribe to Realtime Updates
-    const channel = supabase
-      .channel('realtime-appointments')
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'slots',
-          filter: `salon_id=eq.${salon.id}`,
-        },
-        async (payload) => {
-          // Play Sound
-          const audio = new Audio('https://assets.mixkit.co/sfx/preview/mixkit-software-interface-start-2574.mp3');
-          audio.play().catch(e => console.warn("Audio play blocked", e));
+    const handleNewAppointment = async (payload) => {
+      // Play Sound
+      const audio = new Audio('https://assets.mixkit.co/sfx/preview/mixkit-software-interface-start-2574.mp3');
+      audio.play().catch(e => console.warn("Audio play blocked", e));
 
-          // Fetch full details (with service name)
-          const { data: newSlot } = await supabase
-            .from('slots')
-            .select('*, services(name)')
-            .eq('id', payload.new.id)
-            .single();
+      try {
+        // Fetch full details (with service name)
+        const newSlot = await fetchSlotById(payload.new.id);
+        setRecentAppointments(prev => [newSlot, ...prev].slice(0, 10));
+        toast.success(`Novo Agendamento: ${newSlot.client_name}`);
+      } catch (error) {
+        console.error("Failed to process new appointment notification:", error);
+      }
+    };
 
-          if (newSlot) {
-            setRecentAppointments(prev => [newSlot, ...prev].slice(0, 10));
-            toast.success(`Novo Agendamento: ${newSlot.client_name}`);
-          }
-        }
-      )
-      .subscribe();
+    const channel = subscribeToNewAppointments(salon.id, handleNewAppointment);
 
     return () => {
-      supabase.removeChannel(channel);
+      unsubscribeFromChannel(channel);
     };
   }, [salon?.id]);
 
@@ -157,7 +108,7 @@ export default function BusinessDashboard() {
     plugins: {
       legend: { display: false },
       tooltip: {
-        backgroundColor: '#403D39', // deepCharcoal hex
+        backgroundColor: 'var(--dash-card)',
         padding: 12,
         cornerRadius: 10,
       }
@@ -168,49 +119,48 @@ export default function BusinessDashboard() {
     }
   };
 
-  if (loading) return <div className="py-20 text-center text-brand-muted">Processando Inteligência...</div>;
+  if (loading) return (
+      <div className="flex flex-col justify-center items-center h-screen bg-brand-surface text-brand-muted">
+        <Loader2 className="animate-spin text-brand-primary mb-4" size={32} />
+        <p className="font-semibold">Carregando painel...</p>
+      </div>
+  );
 
   return (
     <div className="space-y-8 p-6 bg-brand-surface min-h-screen">
       <header className="flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-extrabold text-brand-primary">Painel de Gestão</h1>
-          <p className="text-sm text-brand-muted mt-1">Faturamento baseado nos seus serviços de R$ 150 e R$ 300</p>
+          <p className="text-sm text-brand-muted mt-1">Visão geral da performance do seu negócio.</p>
         </div>
       </header>
 
       {/* CARDS */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="bg-brand-card p-6 rounded-2xl border border-brand-muted/20 shadow-sm hover:shadow-md transition-shadow">
-          <div className="flex justify-between items-start mb-2">
-            <div className="p-2 rounded-lg bg-[#ECFDF5]">
-              <DollarSign color="#10B981" size={20} />
-            </div>
-            <span className="text-xs font-semibold text-[#10B981] inline-flex items-center gap-1"><ArrowUpRight size={14} /> Alto</span>
-          </div>
-          <span className="text-sm font-medium text-brand-muted">Faturamento Bruto</span>
-          <h2 className="text-2xl font-bold text-brand-text mt-2">R$ {metrics.totalRevenue.toFixed(2)}</h2>
-        </div>
-
-        <div className="bg-brand-card p-6 rounded-2xl border border-brand-muted/20 shadow-sm hover:shadow-md transition-shadow">
-          <div className="flex justify-between items-start mb-2">
-            <div className="p-2 rounded-lg bg-[#EFF6FF]">
-              <TrendingUp color="#3B82F6" size={20} />
-            </div>
-          </div>
-          <span className="text-sm font-medium text-brand-muted">Ticket Médio</span>
-          <h2 className="text-2xl font-bold text-brand-text mt-2">R$ {metrics.ticketMedio.toFixed(2)}</h2>
-        </div>
-
-        <div className="bg-brand-card p-6 rounded-2xl border border-brand-muted/20 shadow-sm hover:shadow-md transition-shadow">
-          <div className="flex justify-between items-start mb-2">
-            <div className="p-2 rounded-lg bg-[#FFF7ED]">
-              <Users color="#F97316" size={20} />
-            </div>
-          </div>
-          <span className="text-sm font-medium text-brand-muted">Taxa de Retenção</span>
-          <h2 className="text-2xl font-bold text-brand-text mt-2">{metrics.retentionRate}%</h2>
-        </div>
+        <StatCard
+          title="Faturamento Bruto"
+          value={Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(insights.stats.totalRevenue)}
+          icon={TrendingUp}
+          color="green"
+        />
+        <StatCard
+          title="Custos Totais"
+          value={Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(insights.stats.totalExpenses)}
+          icon={TrendingDown}
+          color="red"
+        />
+        <StatCard
+          title="Lucro Líquido"
+          value={Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(insights.stats.netProfit)}
+          icon={PieChart}
+          color="primary"
+        />
+        <StatCard
+          title="Ticket Médio"
+          value={Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(insights.stats.totalRevenue / (insights.stats.totalAppointments || 1))}
+          icon={DollarSign}
+          color="blue"
+        />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -221,29 +171,10 @@ export default function BusinessDashboard() {
           </div>
         </div>
 
-        <div className="bg-brand-card p-6 rounded-2xl border border-brand-muted/20">
-          <h3 className="text-lg font-semibold text-brand-text mb-4">Mix de Receita</h3>
-          <div className="space-y-4">
-            <div>
-              <div className="flex items-center justify-between text-sm font-semibold mb-2"><span>Serviços</span><span>{((metrics.serviceRevenue/metrics.totalRevenue)*100).toFixed(0)}%</span></div>
-              <div className="h-2 bg-brand-muted/20 rounded-full overflow-hidden">
-                <div className="h-full rounded-full" style={{ width: '85%', backgroundColor: '#556B2F' }} />
-              </div>
-            </div>
-
-            <div>
-              <div className="flex items-center justify-between text-sm font-semibold mb-2"><span>Café e Produtos</span><span>{((metrics.productRevenue/metrics.totalRevenue)*100).toFixed(0)}%</span></div>
-              <div className="h-2 bg-brand-muted/20 rounded-full overflow-hidden">
-                <div className="h-full rounded-full" style={{ width: '15%', backgroundColor: '#3B82F6' }} />
-              </div>
-            </div>
-
-            <div className="mt-6 flex items-center gap-3 bg-brand-surface p-3 rounded-lg">
-              <Award size={18} />
-              <p className="text-sm text-brand-muted m-0">Seu serviço de <strong>R$ 300</strong> representa a maior parte do lucro líquido.</p>
-            </div>
-          </div>
+        <div className="lg:col-span-1">
+          <LowStockWidget salonId={salon?.id} />
         </div>
+
       </div>
 
       {/* Recent Appointments Section */}

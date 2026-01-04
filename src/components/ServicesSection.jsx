@@ -5,14 +5,9 @@ import ServicesList from "./ServicesList";
 export default function ServicesSection({ services, setServices, salonId, colors }) {
   return (
     <section
-      style={{
-        backgroundColor: colors.white,
-        borderRadius: "16px",
-        padding: "30px",
-        border: `1px solid ${colors.warmSand}`,
-      }}
+      className="bg-brand-card rounded-3xl p-8 border border-brand-muted/20"
     >
-      <h2 style={{ color: colors.deepCharcoal, marginBottom: "20px" }}>
+      <h2 className="text-2xl font-bold text-brand-text mb-6">
         Catálogo de Serviços
       </h2>
 

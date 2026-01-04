@@ -1,11 +1,15 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { supabase } from '../../lib/supabase';
-import { COLORS } from '../../constants/dashboard';
+import { supabase } from '../../lib/supabase'; // Kept for auth calls
 import { CheckCircle, ArrowLeft } from 'lucide-react';
 import moment from 'moment';
 import ClientHeader from '../../components/ui/ClientHeader';
-import { createBookingSlot } from '../../services/supabaseService';
+import { 
+  createBookingSlot, 
+  fetchSalonByIdOrSlug, 
+  fetchServicesAndProfessionals,
+  fetchBusySlotsForDate
+} from '../../services/supabaseService';
 
 export default function SalonBooking({ publicMode = false, salonIdFromSlug = null }) {
   const { id: paramId, slug } = useParams();
@@ -87,23 +91,12 @@ export default function SalonBooking({ publicMode = false, salonIdFromSlug = nul
       if (!identifier) return;
       try {
         setLoading(true);
-        const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(identifier);
-        const query = supabase.from('salons').select('*');
-        if (isUUID) query.eq('id', identifier);
-        else query.eq('slug', identifier);
-
-        const { data: salonData, error: sError } = await query.single();
-        if (sError || !salonData) throw new Error("Salão não encontrado");
-
+        const salonData = await fetchSalonByIdOrSlug(identifier);
         setSalon(salonData);
 
-        const [serRes, pRes] = await Promise.all([
-          supabase.from('services').select('*').eq('salon_id', salonData.id).order('name'),
-          supabase.from('professionals').select('*').eq('salon_id', salonData.id).order('name')
-        ]);
-
-        setServices(serRes.data || []);
-        setProfessionals(pRes.data || []);
+        const { services, professionals } = await fetchServicesAndProfessionals(salonData.id);
+        setServices(services);
+        setProfessionals(professionals);
       } catch (err) {
         console.error("Erro ao carregar salão:", err);
       } finally {
@@ -127,15 +120,7 @@ export default function SalonBooking({ publicMode = false, salonIdFromSlug = nul
       times.push(`${h.toString().padStart(2, '0')}:00`, `${h.toString().padStart(2, '0')}:30`);
     }
 
-    const startDay = moment(selectedDate).startOf('day').toISOString();
-    const endDay = moment(selectedDate).endOf('day').toISOString();
-
-    const { data: busy } = await supabase
-      .from('slots')
-      .select('start_time, end_time')
-      .eq('professional_id', selectedProfessional.id)
-      .gte('start_time', startDay)
-      .lte('start_time', endDay);
+    const busy = await fetchBusySlotsForDate(selectedProfessional.id, selectedDate);
 
     const busyIntervals = busy?.map(b => ({
       start: moment(b.start_time),
@@ -209,32 +194,32 @@ export default function SalonBooking({ publicMode = false, salonIdFromSlug = nul
   };
 
   if (loading) return (
-    <div style={{ backgroundColor: COLORS.offWhite, minHeight: '100vh' }}>
+    <div className="bg-brand-surface min-h-screen">
       {!publicMode && <ClientHeader />}
-      <div style={styles.center}>Carregando...</div>
+      <div className="text-center p-12 text-brand-muted">Carregando...</div>
     </div>
   );
 
   const isFormValid = clientData.name.trim().length > 2 && clientData.phone.length >= 14;
 
   return (
-    <div style={{ backgroundColor: COLORS.offWhite, minHeight: '100vh' }}>
+    <div className="bg-brand-surface min-h-screen">
       {!publicMode && <ClientHeader />}
-      <div style={styles.container}>
+      <div className="max-w-lg mx-auto px-5 pb-10">
         {step === 1 && (
           <section>
-            <div style={styles.headerRow}>
-              {!publicMode && <button onClick={() => navigate(-1)} style={styles.backIconBtn}><ArrowLeft size={20}/></button>}
-              <h3 style={styles.sectionTitle}>Selecione o Serviço</h3>
+            <div className="flex items-center gap-2.5 mb-5">
+              {!publicMode && <button onClick={() => navigate(-1)} className="p-2"><ArrowLeft size={20}/></button>}
+              <h3 className="text-lg mb-5 text-brand-text font-bold">Selecione o Serviço</h3>
             </div>
-            <div style={styles.list}>
+            <div className="grid gap-3">
               {services.map(s => (
-                <div key={s.id} onClick={() => { setSelectedService(s); setStep(2); }} style={styles.card}>
+                <div key={s.id} onClick={() => { setSelectedService(s); setStep(2); }} className="p-4 bg-brand-card rounded-2xl flex justify-between items-center cursor-pointer shadow-sm border border-brand-muted/10 hover:border-brand-primary transition-all">
                   <div>
-                    <div style={styles.bold}>{s.name}</div>
-                    <div style={styles.sub}>{s.duration_minutes} min</div>
+                    <div className="font-bold text-brand-text">{s.name}</div>
+                    <div className="text-sm text-brand-muted">{s.duration_minutes} min</div>
                   </div>
-                  <div style={styles.price}>R$ {Number(s.price).toFixed(2)}</div>
+                  <div className="text-brand-primary font-extrabold">R$ {Number(s.price).toFixed(2)}</div>
                 </div>
               ))}
             </div>
@@ -243,101 +228,97 @@ export default function SalonBooking({ publicMode = false, salonIdFromSlug = nul
 
         {step === 2 && (
           <section>
-            <button onClick={() => setStep(1)} style={styles.backBtn}>← Voltar aos serviços</button>
-            <h3 style={styles.sectionTitle}>Com quem e quando?</h3>
-            <div style={styles.profRow}>
+            <button onClick={() => setStep(1)} className="bg-none border-none text-brand-muted cursor-pointer mb-4">← Voltar aos serviços</button>
+            <h3 className="text-lg mb-5 text-brand-text font-bold">Com quem e quando?</h3>
+            <div className="flex gap-2.5 mb-5 overflow-x-auto p-1.5">
               {professionals.map(p => (
-                <div key={p.id} onClick={() => setSelectedProfessional(p)} style={{...styles.profCard, borderColor: selectedProfessional?.id === p.id ? COLORS.sageGreen : '#eee'}}>
-                  <div style={styles.avatar}>{p.name[0]}</div>
-                  <div style={styles.sub}>{p.name}</div>
+                <div key={p.id} onClick={() => setSelectedProfessional(p)} className={`p-4 bg-brand-card rounded-xl border-2 min-w-[85px] text-center cursor-pointer transition-all ${selectedProfessional?.id === p.id ? 'border-brand-primary' : 'border-brand-muted/20'}`}>
+                  <div className="w-10 h-10 rounded-full bg-brand-surface mx-auto mb-2 flex items-center justify-center font-bold">{p.name[0]}</div>
+                  <div className="text-sm text-brand-muted">{p.name}</div>
                 </div>
               ))}
             </div>
-            <input type="date" value={selectedDate} min={moment().format('YYYY-MM-DD')} onChange={e => setSelectedDate(e.target.value)} style={styles.input} />
-            <div style={styles.timeGrid}>
+            <input type="date" value={selectedDate} min={moment().format('YYYY-MM-DD')} onChange={e => setSelectedDate(e.target.value)} className="w-full p-3.5 rounded-xl border border-brand-muted/30 mb-4 box-border bg-brand-card text-brand-text" />
+            <div className="grid grid-cols-4 gap-2.5">
               {availableSlots.length > 0 ? availableSlots.map(t => (
-                <button key={t} onClick={() => { setSelectedTime(t); setStep(3); }} style={styles.timeBtn}>{t}</button>
+                <button key={t} onClick={() => { setSelectedTime(t); setStep(3); }} className="p-3 rounded-lg border border-brand-muted/20 cursor-pointer font-semibold bg-brand-card text-brand-text hover:border-brand-primary">{t}</button>
               )) : (
-                <div style={{gridColumn: '1/-1', textAlign: 'center', padding: '20px', color: '#999'}}>Nenhum horário disponível para esta data.</div>
+                <div className="col-span-full text-center p-5 text-brand-muted">Nenhum horário disponível para esta data.</div>
               )}
             </div>
           </section>
         )}
 
         {step === 3 && (
-          <section style={styles.confirmCard}>
-            <h3 style={styles.sectionTitle}>Finalizar Agendamento</h3>
-            <div style={styles.summaryBox}>
-              <div style={{marginBottom: '8px'}}><strong>{selectedService.name}</strong></div>
-              <div style={styles.sub}>Profissional: {selectedProfessional.name}</div>
-              <div style={styles.sub}>📅 {moment(selectedDate).format('DD/MM/YYYY')} às {selectedTime}</div>
+          <section className="bg-brand-card p-6 rounded-2xl border border-brand-muted/10 shadow-lg">
+            <h3 className="text-lg mb-5 text-brand-text font-bold">Finalizar Agendamento</h3>
+            <div className="bg-brand-surface p-5 rounded-2xl mb-5 border border-brand-muted/10 shadow-inner">
+              <div className="mb-2 font-bold text-brand-text">{selectedService.name}</div>
+              <div className="text-sm text-brand-muted">Profissional: {selectedProfessional.name}</div>
+              <div className="text-sm text-brand-muted">📅 {moment(selectedDate).format('DD/MM/YYYY')} às {selectedTime}</div>
             </div>
 
-            {/* Checkbox para liberar edição apenas se for para terceiros */}
             {isUserLoggedIn && !publicMode && (
-              <div style={{marginBottom: '15px'}}>
-                <label style={{display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.9rem', color: '#555'}}>
+              <div className="mb-4">
+                <label className="flex items-center gap-2 cursor-pointer text-sm text-brand-muted">
                   <input 
                     type="checkbox" 
                     checked={isBookingForOthers} 
                     onChange={(e) => setIsBookingForOthers(e.target.checked)}
+                    className="form-checkbox rounded text-brand-primary focus:ring-brand-primary"
                   />
                   Agendar para outra pessoa
                 </label>
               </div>
             )}
 
-            <label style={styles.label}>Nome do Cliente *</label>
+            <label className="block text-sm font-semibold text-brand-muted mb-1 ml-1">Nome do Cliente *</label>
             <input 
               placeholder="Nome de quem será atendido" 
               value={clientData.name} 
               disabled={isUserLoggedIn && !isBookingForOthers && !publicMode}
               onChange={e => setClientData({...clientData, name: e.target.value})} 
-              style={{...styles.input, backgroundColor: (isUserLoggedIn && !isBookingForOthers && !publicMode) ? '#f5f5f5' : 'white'}} 
+              className={`w-full p-3.5 rounded-xl border border-brand-muted/30 mb-4 box-border text-brand-text ${(isUserLoggedIn && !isBookingForOthers && !publicMode) ? 'bg-brand-surface/50' : 'bg-brand-surface'}`}
             />
 
-            <label style={styles.label}>WhatsApp *</label>
+            <label className="block text-sm font-semibold text-brand-muted mb-1 ml-1">WhatsApp *</label>
             <input 
               placeholder="(11) 99999-9999" 
               type="tel" 
               value={clientData.phone} 
               disabled={isUserLoggedIn && !isBookingForOthers && !publicMode}
               onChange={e => setClientData({...clientData, phone: formatPhone(e.target.value)})} 
-              style={{...styles.input, backgroundColor: (isUserLoggedIn && !isBookingForOthers && !publicMode) ? '#f5f5f5' : 'white'}} 
+              className={`w-full p-3.5 rounded-xl border border-brand-muted/30 mb-4 box-border text-brand-text ${(isUserLoggedIn && !isBookingForOthers && !publicMode) ? 'bg-brand-surface/50' : 'bg-brand-surface'}`}
               maxLength={15} 
             />
 
             <button 
               onClick={handleBooking} 
               disabled={!isFormValid || isProcessing} 
-              style={{
-                ...styles.mainBtn, 
-                backgroundColor: isFormValid && !isProcessing ? COLORS.deepCharcoal : '#ccc', 
-                cursor: isFormValid && !isProcessing ? 'pointer' : 'not-allowed'
-              }}
+              className="w-full p-4 text-white border-none rounded-xl font-bold text-base transition-all disabled:bg-brand-muted disabled:cursor-not-allowed bg-brand-primary"
             >
               {isProcessing ? 'Reservando...' : 'Confirmar Agendamento'}
             </button>
-            <button onClick={() => setStep(2)} style={styles.secondaryBtn}>Alterar data ou horário</button>
+            <button onClick={() => setStep(2)} className="w-full p-3 bg-none border-none text-brand-muted cursor-pointer mt-2.5">Alterar data ou horário</button>
           </section>
         )}
 
         {step === 4 && (
-          <div style={styles.center}>
-            <CheckCircle size={60} color={COLORS.sageGreen} />
-            <h2 style={{marginTop: '20px', color: COLORS.deepCharcoal, fontWeight: '700'}}>Agendado com sucesso!</h2>
-            <p style={{color: '#666', marginBottom: '25px', lineHeight: '1.5'}}>
+          <div className="text-center p-12 text-brand-muted">
+            <CheckCircle size={60} className="text-brand-primary mx-auto" />
+            <h2 className="mt-5 text-brand-text font-bold text-xl">Agendado com sucesso!</h2>
+            <p className="mb-6 leading-relaxed">
               Tudo pronto! Seu horário foi reservado.<br/>
               Dúvidas? Entre em contato com o salão:
             </p>
             
-            <button onClick={handleContactSalon} style={{...styles.mainBtn, backgroundColor: '#25D366', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', marginBottom: '15px'}}>
+            <button onClick={handleContactSalon} className="w-full p-4 text-white border-none rounded-xl font-bold text-base transition-all bg-[#25D366] flex items-center justify-center gap-2.5 mb-4">
               Falar com o Salão
             </button>
 
             <button 
               onClick={() => publicMode ? resetForm() : navigate('/meus-agendamentos')} 
-              style={styles.secondaryBtn}
+              className="w-full p-3 bg-none border-none text-brand-muted cursor-pointer mt-2.5"
             >
               {publicMode ? 'Fazer outro agendamento' : 'Ver meus agendamentos'}
             </button>
@@ -347,27 +328,3 @@ export default function SalonBooking({ publicMode = false, salonIdFromSlug = nul
     </div>
   );
 }
-
-const styles = {
-  container: { maxWidth: '500px', margin: '0 auto', padding: '0 20px 40px' },
-  center: { textAlign: 'center', padding: '50px', color: '#666' },
-  sectionTitle: { fontSize: '1.2rem', marginBottom: '20px', color: COLORS.deepCharcoal, fontWeight: '700' },
-  headerRow: { display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' },
-  list: { display: 'grid', gap: '12px' },
-  card: { padding: '18px', backgroundColor: 'white', borderRadius: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.04)', border: '1px solid #f0f0f0' },
-  bold: { fontWeight: '700', color: COLORS.deepCharcoal },
-  sub: { fontSize: '0.85rem', color: '#888' },
-  price: { color: COLORS.sageGreen, fontWeight: '800' },
-  profRow: { display: 'flex', gap: '10px', marginBottom: '20px', overflowX: 'auto', padding: '5px' },
-  profCard: { padding: '15px', backgroundColor: 'white', borderRadius: '12px', border: '2px solid', minWidth: '85px', textAlign: 'center', cursor: 'pointer' },
-  avatar: { width: '40px', height: '40px', borderRadius: '50%', backgroundColor: COLORS.warmSand, margin: '0 auto 8px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' },
-  label: { display: 'block', fontSize: '0.85rem', fontWeight: '600', color: '#666', marginBottom: '5px', marginLeft: '4px' },
-  input: { width: '100%', padding: '14px', borderRadius: '12px', border: '1px solid #ddd', marginBottom: '15px', boxSizing: 'border-box' },
-  timeGrid: { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px' },
-  timeBtn: { padding: '12px 5px', borderRadius: '10px', border: '1px solid #eee', cursor: 'pointer', fontWeight: '600' },
-  mainBtn: { width: '100%', padding: '16px', color: 'white', border: 'none', borderRadius: '12px', fontWeight: 'bold', cursor: 'pointer', fontSize: '1rem', transition: '0.2s' },
-  secondaryBtn: { width: '100%', padding: '12px', background: 'none', border: 'none', color: '#888', cursor: 'pointer', marginTop: '10px' },
-  backBtn: { background: 'none', border: 'none', color: '#666', cursor: 'pointer', marginBottom: '15px' },
-  backIconBtn: { background: 'none', border: 'none', cursor: 'pointer' },
-  summaryBox: { backgroundColor: 'white', padding: '20px', borderRadius: '16px', marginBottom: '20px', border: '1px solid #eee', boxShadow: '0 2px 6px rgba(0,0,0,0.02)' }
-};
