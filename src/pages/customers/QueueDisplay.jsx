@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../../lib/supabase';
-import { useSalon } from '../../context/SalonContext';
+import { supabase } from '@/lib/supabase';
+import { useSalon } from '@/context/SalonContext';
 import { Clock, Scissors, Star } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import moment from 'moment';

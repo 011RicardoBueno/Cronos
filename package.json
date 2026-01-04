@@ -11,7 +11,6 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-
     "seed:db": "DOTENV_CONFIG_PATH=.env.seed node -r dotenv/config supabase/seed.js"
   },
   "dependencies": {
@@ -38,12 +37,17 @@
     "@babel/preset-react": "^7.28.5",
     "@eslint/js": "^9.39.1",
     "@faker-js/faker": "^10.1.0",
+    "@swc/core": "^1.15.8",
+    "@swc/jest": "^0.2.39",
     "@tailwindcss/postcss": "^4.1.18",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.1",
-    "@types/react": "^19.2.5",
+    "@types/node": "^25.0.3",
+    "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
     "@types/react-router-dom": "^5.3.3",
+    "@typescript-eslint/eslint-plugin": "^8.51.0",
+    "@typescript-eslint/parser": "^8.51.0",
     "@vitejs/plugin-react": "^5.1.1",
     "autoprefixer": "^10.4.23",
     "babel-jest": "^30.2.0",
@@ -56,6 +60,8 @@
     "jest-environment-jsdom": "^30.2.0",
     "postcss": "^8.5.6",
     "tailwindcss": "^4.1.18",
+    "ts-jest": "^29.4.6",
+    "typescript": "^5.9.3",
     "vite": "^7.2.4"
   }
 }

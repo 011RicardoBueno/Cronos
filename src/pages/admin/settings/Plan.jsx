@@ -1,7 +1,7 @@
 import React from 'react';
 import { Star, Zap } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import Button from '../../../components/ui/Button';
+import Button from '@/components/ui/Button';
 
 export default function SettingsPlan({ currentPlan }) {
   const navigate = useNavigate();

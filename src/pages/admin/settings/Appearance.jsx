@@ -1,6 +1,6 @@
 import React from 'react';
 import { Palette } from 'lucide-react';
-import Button from "../../../components/ui/Button";
+import Button from "@/components/ui/Button";
 
 export default function SettingsAppearance({ canUseCustomTheme, values, setFieldValue, themes }) {
   return (

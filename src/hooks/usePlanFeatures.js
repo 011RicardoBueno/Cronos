@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { useSalon } from '../context/SalonContext';
+import { useSalon } from '@/context/SalonContext';
 
 export const usePlanFeatures = () => {
   const { salon } = useSalon();

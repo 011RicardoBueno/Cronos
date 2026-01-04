@@ -1,8 +1,8 @@
 // hooks/useDashboardData.js
 import { useState, useCallback, useEffect } from 'react';
-import { useSalon } from '../context/SalonContext';
-import { fetchServicesAndProfessionals } from '../services/supabaseService';
-import { validateProfessionalExists } from '../utils/dashboardUtils';
+import { useSalon } from '@/context/SalonContext';
+import { fetchServicesAndProfessionals } from '@/services/supabaseService';
+import { validateProfessionalExists } from '@/utils/dashboardUtils';
 
 export const useDashboardData = (selectedProfessionalId) => {
   const { salon } = useSalon();

@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Outlet } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import DashboardHeader from './DashboardHeader';
-import { usePlanFeatures } from '../../hooks/usePlanFeatures';
-import TrialEndModal from '../TrialEndModal';
+import { usePlanFeatures } from '@/hooks/usePlanFeatures';
+import TrialEndModal from '@/components/TrialEndModal';
 
 export default function DashboardLayout({ children }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);

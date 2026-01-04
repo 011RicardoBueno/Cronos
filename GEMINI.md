@@ -66,6 +66,10 @@ Budget:preferência por bibliotecas gratuitas, nossa ideia é escalar o SaaS e c
 Design: queremo um visual premium e padronizado.
 User data: Nós queremo garantir que nossos usuários são pessoas reais e para isso não podemos permitir que aconteça dupilicidade de dados como clientes com o mesmo número de telefone e padronizando as variáveis em que armazenamos os valores.
 
+Boas práticas: Usar imports relativos, Normalização semântica, Escalabilidade real (pensando em SaaS), Barrel files nos componentes grandes, ESLint para imports.
+
+
+
 Por Que Esse Perfil é o Melhor?
 Um profissional com essa combinação evita silos entre dev e marketing, reduzindo custos e tempo. Resultado: Um SaaS não só técnico, mas market-ready, com alto potencial de viralidade e conversão. Se precisar contratar, busque em plataformas como LinkedIn com filtros para "React + Marketing" ou comunidades como Indie Hackers.
 Para mais detalhes ou customizações, ajuste este perfil com base no nicho do SaaS (ex.: edtech, fintech).

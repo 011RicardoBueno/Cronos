@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { supabase } from '../../lib/supabase';
-import { useSalon } from '../../context/SalonContext';
+import { supabase } from '@/lib/supabase';
+import { useSalon } from '@/context/SalonContext';
 import { useNavigate } from 'react-router-dom';
 import { 
   Users, MessageCircle, Calendar, Search, 

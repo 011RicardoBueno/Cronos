@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { supabase } from '../../lib/supabase';
-import { COLORS } from '../../constants/dashboard';
+import { supabase } from '@/lib/supabase';
+import { COLORS } from '@/constants/dashboard';
 
 const ClientOnboarding = ({ user, onComplete }) => {
   const [formData, setFormData] = useState({

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase } from '@/lib/supabase';
 import { X } from 'lucide-react';
-import { useSalon } from '../context/SalonContext';
+import { useSalon } from '@/context/SalonContext';
 
 export default function ProfessionalFormModal({ professional, onClose, onSave }) {
   const { salon } = useSalon();

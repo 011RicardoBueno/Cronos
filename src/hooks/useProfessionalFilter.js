@@ -1,7 +1,7 @@
 // hooks/useProfessionalFilter.js
 import { useState, useEffect, useCallback } from 'react';
-import { STORAGE_KEY, URL_PARAM_KEY } from '../constants/dashboard';
-import { getProfessionalFromURL } from '../utils/dashboardUtils';
+import { STORAGE_KEY, URL_PARAM_KEY } from '@/constants/dashboard';
+import { getProfessionalFromURL } from '@/utils/dashboardUtils';
 
 export const useProfessionalFilter = (initialValue = "all") => {
   const [selectedProfessionalId, setSelectedProfessionalId] = useState(() => {

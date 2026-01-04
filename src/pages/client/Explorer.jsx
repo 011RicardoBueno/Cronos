@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '../../lib/supabase';
-import { COLORS } from '../../constants/dashboard';
+import { supabase } from '@/lib/supabase';
+import { COLORS } from '@/constants/dashboard';
 import { Search, MapPin, ChevronRight } from 'lucide-react';
-import ClientHeader from '../../components/ui/ClientHeader';
+import ClientHeader from '@/components/ui/ClientHeader';
 
 export default function Explorer() {
   const [salons, setSalons] = useState([]);

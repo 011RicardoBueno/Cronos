@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../../lib/supabase';
+import { supabase } from '@/lib/supabase';
 import { 
   Settings as SettingsIcon, Store, Clock, Globe, 
   Save, Loader2, AlertTriangle 

@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Save, Loader2, RotateCcw, Store, Clock, Palette, Zap } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { useSalon } from '../../context/SalonContext';
-import Button from '../../components/ui/Button';
-import { usePlanFeatures } from '../../hooks/usePlanFeatures';
+import { useSalon } from '@/context/SalonContext';
+import Button from '@/components/ui/Button';
+import { usePlanFeatures } from '@/hooks/usePlanFeatures';
 import { useNavigate } from 'react-router-dom';
-import { useForm } from '../../hooks/useForm';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '../../components/ui/Tabs';
+import { useForm } from '@/hooks/useForm';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/Tabs';
 
 import {
   SettingsAgenda,
@@ -16,7 +16,7 @@ import {
   SettingsIntegrations,
   SettingsLogo,
   SettingsPlan,
-} from "./settings";
+} from "@/pages/admin/settings";
 
 // Função de validação extraída do componente
 const validateSettings = (values) => {

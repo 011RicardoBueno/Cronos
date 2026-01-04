@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../../lib/supabase';
-import { useSalon } from '../../context/SalonContext';
-import { useAuth } from '../../context/AuthContext'; // Importamos o Auth
-import LogoUpload from '../LogoUpload';
-import BannerUpload from './BannerUpload';
-import { usePlanFeatures } from '../../hooks/usePlanFeatures'; // Importamos o hook de features
+import { supabase } from '@/lib/supabase';
+import { useSalon } from '@/context/SalonContext';
+import { useAuth } from '@/context/AuthContext'; // Importamos o Auth
+import LogoUpload from '@/components/LogoUpload';
+import BannerUpload from '@/components/salon/BannerUpload';
+import { usePlanFeatures } from '@/hooks/usePlanFeatures'; // Importamos o hook de features
 import { Loader2, Sparkles } from 'lucide-react';
 import { Link } from 'react-router-dom'; // Import Link
 import canvasConfetti from 'canvas-confetti'; // Import canvas-confetti

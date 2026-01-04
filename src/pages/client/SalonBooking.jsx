@@ -1,15 +1,15 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { supabase } from '../../lib/supabase'; // Kept for auth calls
+import { supabase } from '@/lib/supabase'; // Kept for auth calls
 import { CheckCircle, ArrowLeft } from 'lucide-react';
 import moment from 'moment';
-import ClientHeader from '../../components/ui/ClientHeader';
+import ClientHeader from '@/components/ui/ClientHeader';
 import { 
   createBookingSlot, 
   fetchSalonByIdOrSlug, 
   fetchServicesAndProfessionals,
   fetchBusySlotsForDate
-} from '../../services/supabaseService';
+} from '@/services/supabaseService';
 
 export default function SalonBooking({ publicMode = false, salonIdFromSlug = null }) {
   const { id: paramId, slug } = useParams();

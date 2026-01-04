@@ -8,6 +8,7 @@ module.exports = {
   setupFilesAfterEnv: ['<rootDir>/jest.setup.js'],
   testMatch: ['**/__tests__/**/*.test.[jt]s?(x)'],
   transform: {
-    '^.+\\.(js|jsx)$': 'babel-jest'
-  }
+    '^.+\\.(js|jsx|ts|tsx)$': '@swc/jest'
+  },
+  moduleFileExtensions: ['js', 'jsx', 'ts', 'tsx', 'json', 'node']
 };

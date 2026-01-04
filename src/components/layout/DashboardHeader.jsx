@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Menu, User, LogOut } from 'lucide-react';
-import Notifications from '../dashboard/Notifications';
-import { useAuth } from '../../context/AuthContext';
-import { usePlanFeatures } from '../../hooks/usePlanFeatures';
-import { supabase } from '../../lib/supabase';
+import Notifications from '@/components/dashboard/Notifications';
+import { useAuth } from '@/context/AuthContext';
+import { usePlanFeatures } from '@/hooks/usePlanFeatures';
+import { supabase } from '@/lib/supabase';
 import { useNavigate } from 'react-router-dom';
 
 export default function DashboardHeader({ onOpenSidebar }) {

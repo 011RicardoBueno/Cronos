@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../../lib/supabase';
-import { fetchAppointmentsByClientId } from '../../services/supabaseService';
+import { supabase } from '@/lib/supabase';
+import { fetchAppointmentsByClientId } from '@/services/supabaseService';
 import { Link } from 'react-router-dom';
 import moment from 'moment';
 import 'moment/locale/pt-br';
-import ClientHeader from '../../components/ui/ClientHeader';
+import ClientHeader from '@/components/ui/ClientHeader';
 import { Calendar, Clock, Loader2, User, Building } from 'lucide-react';
 
 moment.locale('pt-br');

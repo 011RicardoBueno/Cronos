@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase } from '@/lib/supabase';
 import imageCompression from 'browser-image-compression';
 import { Upload, Loader2, Image as ImageIcon } from 'lucide-react';
-import { usePlanFeatures } from '../hooks/usePlanFeatures';
+import { usePlanFeatures } from '@/hooks/usePlanFeatures';
 export default function LogoUpload({ salonId, currentLogo, onUploadSuccess }) {
   const [uploading, setUploading] = useState(false);
   const [preview, setPreview] = useState(currentLogo);

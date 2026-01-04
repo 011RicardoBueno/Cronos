@@ -1,18 +1,18 @@
 import React, { useEffect, useState } from 'react';
-import { useSalon } from '../../context/SalonContext';
-import { useAnalytics } from '../../hooks/useAnalytics';
+import { useSalon } from '@/context/SalonContext';
+import { useAnalytics } from '@/hooks/useAnalytics';
 import toast from 'react-hot-toast';
 import { 
   DollarSign, TrendingUp, Users, ArrowUpRight, Award, Calendar, TrendingDown, PieChart
 , Loader2 } from 'lucide-react';
-import LowStockWidget from '../../components/widgets/LowStockWidget';
-import StatCard from '../../components/widgets/StatCard';
+import LowStockWidget from '@/components/widgets/LowStockWidget';
+import StatCard from '@/components/widgets/StatCard';
 import { 
   fetchRecentAppointments, 
   subscribeToNewAppointments, 
   unsubscribeFromChannel,
   fetchSlotById
-} from '../../services/supabaseService';
+} from '@/services/supabaseService';
 
 // Importações do Chart.js
 import {

@@ -1,7 +1,7 @@
 import { BrowserRouter as Router } from 'react-router-dom';
-import { AuthProvider } from './context/AuthContext';
-import { SalonProvider } from './context/SalonContext';
-import { AppRoutes } from './routes';
+import { AuthProvider } from '@/context/AuthContext';
+import { SalonProvider } from '@/context/SalonContext';
+import { AppRoutes } from '@/routes';
 import { Toaster } from 'react-hot-toast';
 
 function App() {
