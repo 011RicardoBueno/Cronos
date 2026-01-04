@@ -1,6 +1,6 @@
 import React from 'react';
 import { Calendar } from 'lucide-react';
-import FormInput from '../../../../components/ui/FormInput';
+import FormInput from "../../../components/ui/FormInput";
 
 export default function SettingsAgenda({ values, setFieldValue }) {
   return (

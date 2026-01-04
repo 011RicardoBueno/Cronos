@@ -8,14 +8,15 @@ import { useNavigate } from 'react-router-dom';
 import { useForm } from '../../hooks/useForm';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../../components/ui/Tabs';
 
-import SettingsProfile from "./SettingsProfile";
-import SettingsHours from "./settings/SettingsHours";
-import SettingsAgenda from "./settings/SettingsAgenda";
-import SettingsContact from "./settings/SettingsContact";
-import SettingsPlan from "./settings/SettingsPlan";
-import SettingsIntegrations from "./settings/SettingsIntegrations";
-import SettingsAppearance from "./settings/SettingsAppearance";
-import SettingsLogo from "./settings/SettingsLogo";
+import {
+  SettingsAgenda,
+  SettingsAppearance,
+  SettingsContact,
+  SettingsHours,
+  SettingsIntegrations,
+  SettingsLogo,
+  SettingsPlan,
+} from "./settings";
 
 // Função de validação extraída do componente
 const validateSettings = (values) => {
@@ -162,7 +163,7 @@ export default function Settings() {
           {/* ABA 1: PERFIL */}
           <TabsContent value="perfil" className="grid grid-cols-1 md:grid-cols-12 gap-8">
             <div className="md:col-span-7 space-y-8">
-              <SettingsProfile values={localSalon} handleChange={handleChange} errors={errors} />
+
               <SettingsContact values={localSalon} handleChange={handleChange} setFieldValue={setFieldValue} />
             </div>
             <div className="md:col-span-5 space-y-8">
