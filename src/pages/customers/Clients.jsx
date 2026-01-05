@@ -4,9 +4,10 @@ import { useSalon } from '@/context/SalonContext';
 import { useNavigate } from 'react-router-dom';
 import { 
   Users, MessageCircle, Calendar, Search, 
-  Crown, ArrowLeft, X, ShoppingBag, CheckCircle, Clock, Loader2
+  Crown, ArrowLeft, X, ShoppingBag, CheckCircle, Clock, Loader2, Plus
 } from 'lucide-react';
 import moment from 'moment';
+import CustomerForm from '@/components/customers/CustomerForm';
 
 export default function Clients() {
   const { salon } = useSalon();
@@ -21,6 +22,7 @@ export default function Clients() {
   const [selectedClient, setSelectedClient] = useState(null);
   const [clientHistory, setClientHistory] = useState([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
   useEffect(() => {
     if (!salon?.id) return;
@@ -102,6 +104,23 @@ export default function Clients() {
     }
   };
 
+  const handleCreateSuccess = (newCustomer) => {
+    setIsCreateModalOpen(false);
+    // Optimistic update: Add new customer to the list locally
+    // Note: Since this view is based on 'slots' (history), the new customer 
+    // might not have history yet, but we add them to show immediate feedback.
+    const newClientModel = {
+      name: newCustomer.name,
+      phone: newCustomer.phone,
+      totalVisits: 0,
+      totalSpent: 0,
+      lastVisit: new Date().toISOString(), // Mark as "new"
+    };
+    
+    setClients(prev => [newClientModel, ...prev]);
+    // Optional: Show a toast here
+  };
+
   const filteredClients = clients.filter(c => {
     const name = (c.name || "").toLowerCase();
     const phone = c.phone || "";
@@ -140,6 +159,13 @@ export default function Clients() {
           <div className="bg-brand-card border border-brand-muted/20 px-5 py-2.5 rounded-xl shadow-sm flex items-center gap-2">
             <Users size={18} className="text-brand-primary" />
             <span className="font-bold text-brand-text">{clients.length} Clientes</span>
+          </div>
+          <div className="flex-1 flex justify-end">
+             <button 
+               onClick={() => setIsCreateModalOpen(true)}
+               className="bg-brand-primary text-white px-4 py-2.5 rounded-xl font-bold flex items-center gap-2 hover:bg-brand-primary/90 transition-colors shadow-lg shadow-brand-primary/20">
+               <Plus size={18} /> Novo Cliente
+             </button>
           </div>
         </header>
 
@@ -291,6 +317,18 @@ export default function Clients() {
                 </div>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE NOVO CLIENTE */}
+      {isCreateModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in">
+          <div className="bg-brand-card w-full max-w-md rounded-3xl shadow-2xl border border-brand-muted/20 overflow-hidden">
+            <CustomerForm 
+              onSuccess={handleCreateSuccess}
+              onCancel={() => setIsCreateModalOpen(false)}
+            />
           </div>
         </div>
       )}

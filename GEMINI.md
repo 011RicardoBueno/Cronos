@@ -1,3 +1,5 @@
+Vamos definir convenções oficiais, o Gemini trabalha melhor com um GEMINI.md para esse tipo de solicitação, o meu está assim, você pode melhorá-lo com base no que eu pedi:
+
 Visão Geral
 Este documento descreve o perfil ideal de um profissional ou equipe para desenvolver um Software as a Service (SaaS) utilizando as tecnologias React, Vite, Supabase e Tailwind CSS. O foco é no "melhor profissional possível", combinando expertise técnica em desenvolvimento front-end e back-end com conhecimentos em marketing, publicidade e propaganda. Isso garante não apenas uma aplicação robusta e escalável, mas também uma estratégia de branding, naming, teoria das cores e práticas de diferenciação no mercado para maximizar o impacto comercial.
 O perfil é inspirado no conceito de "GEMINI" como um acrônimo fictício para Growth-oriented, Engineering Master, Marketing Innovator, Integrator of Tech & Brand, Navigator of Market Trends, Implementer of Best Practices**. Isso representa um profissional versátil ou uma equipe híbrida que une tecnologia e marketing para criar um SaaS competitivo.
@@ -65,6 +67,8 @@ Planos de assinatura mensal: Usamos 3 planos, plano iniciante que é gratuíto c
 Budget:preferência por bibliotecas gratuitas, nossa ideia é escalar o SaaS e com os ganhos conquistados através dos planos mensais investir em apis pagas.
 Design: queremo um visual premium e padronizado.
 User data: Nós queremo garantir que nossos usuários são pessoas reais e para isso não podemos permitir que aconteça dupilicidade de dados como clientes com o mesmo número de telefone e padronizando as variáveis em que armazenamos os valores.
+
+Policy:Declare barrels as the preferred import surface. ESLint dependency rules. Import alias.
 
 Boas práticas: Usar imports relativos, Normalização semântica, Escalabilidade real (pensando em SaaS), Barrel files nos componentes grandes, ESLint para imports.
 

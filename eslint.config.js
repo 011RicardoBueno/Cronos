@@ -1,51 +1,92 @@
-import js from '@eslint/js'
-import globals from 'globals'
-import reactHooks from 'eslint-plugin-react-hooks'
-import reactRefresh from 'eslint-plugin-react-refresh'
-import typescriptParser from '@typescript-eslint/parser'
-import typescriptPlugin from '@typescript-eslint/eslint-plugin'
-import { defineConfig, globalIgnores } from 'eslint/config'
+import js from "@eslint/js";
+import react from "eslint-plugin-react";
+import reactHooks from "eslint-plugin-react-hooks";
+import importPlugin from "eslint-plugin-import";
 
-export default defineConfig([
-  globalIgnores(['dist']),
+export default [
+  js.configs.recommended,
+
   {
-    files: ['**/*.{js,jsx,ts,tsx}'], // Include TS/TSX files
-    extends: [
-      js.configs.recommended,
-      reactHooks.configs.flat.recommended,
-      reactRefresh.configs.vite,
-      // Add recommended TS rules
-      ...Object.values(typescriptPlugin.configs.recommended).map(config => ({ ...config, files: ['**/*.{ts,tsx}'] })),
-    ],
-    languageOptions: {
-      ecmaVersion: 'latest',
-      sourceType: 'module',
-      parser: typescriptParser, // Use TS parser
-      globals: {
-        ...globals.browser,
-        ...globals.jest // Jest globals should be here
-      },
-      parserOptions: {
-        ecmaFeatures: { jsx: true },
-      },
+    files: ["**/*.{js,jsx,ts,tsx}"],
+    plugins: {
+      react,
+      "react-hooks": reactHooks,
+      import: importPlugin,
     },
+
     rules: {
-      ...typescriptPlugin.configs.recommended.rules, // Include TS specific rules
-      'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]', argsIgnorePattern: '^_' }], // Adjusted for TS
+      /* =========================
+       * REACT
+       * ========================= */
+      "react/react-in-jsx-scope": "off",
+      "react/jsx-uses-react": "off",
+
+      "react-hooks/rules-of-hooks": "error",
+      "react-hooks/exhaustive-deps": "warn",
+
+      /* =========================
+       * IMPORTS – GOVERNANÇA
+       * ========================= */
+      "import/no-unresolved": "error",
+      "import/no-cycle": ["error", { maxDepth: 1 }],
+      "import/no-duplicates": "error",
+
+      "import/order": [
+        "error",
+        {
+          groups: [
+            "builtin",
+            "external",
+            "internal",
+            "parent",
+            "sibling",
+            "index",
+          ],
+          "newlines-between": "always",
+          alphabetize: { order: "asc", caseInsensitive: true },
+        },
+      ],
+
+      /* =========================
+       * BARREL FILE ENFORCEMENT
+       * ========================= */
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: [
+                "**/components/ui/*",
+                "!**/components/ui/index.*",
+              ],
+              message:
+                "Importe via components/ui (barrel file). Import direto é proibido.",
+            },
+            {
+              group: [
+                "**/components/dashboard/**",
+                "!**/components/dashboard/index.*",
+              ],
+              message:
+                "Use o barrel file de components/dashboard.",
+            },
+            {
+              group: [
+                "**/components/widgets/*",
+                "!**/components/widgets/index.*",
+              ],
+              message:
+                "Importe widgets via barrel file.",
+            },
+          ],
+        },
+      ],
+    },
+
+    settings: {
+      react: {
+        version: "detect",
+      },
     },
   },
-  // Tests (Jest) globals
-  {
-    files: ['**/__tests__/**/*.js', '**/__tests__/**/*.jsx', '**/__tests__/**/*.ts', '**/__tests__/**/*.tsx'],
-    languageOptions: {
-      globals: globals.jest,
-    },
-  },
-  // Node/Jest setup
-  {
-    files: ['jest.setup.js', 'jest.setup.ts'], // Include TS setup file if it exists
-    languageOptions: {
-      globals: globals.node,
-    },
-  },
-])
+];
